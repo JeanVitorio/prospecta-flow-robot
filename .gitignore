@@ -1,0 +1,8 @@
+.env
+dados_bots/
+__pycache__/
+*.py[cod]
+logs/
+screenshots/
+*.log
+*.csv
