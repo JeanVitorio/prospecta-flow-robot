@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from selenium.common.exceptions import WebDriverException
+from urllib3.exceptions import HTTPError as Urllib3HTTPError
 
 import bot_config
 from execucao_bot import (
@@ -119,9 +120,10 @@ class ScraperMaps:
             )
             raise
         finally:
-            self.navegador.fechar()
             if self.checkpoint_adquirido:
                 self.checkpoint.liberar(status_final)
+            self.navegador.fechar()
+            if self.checkpoint_adquirido:
                 try:
                     bot_config.definir_comando(self.slug, "parado")
                 except Exception as erro:
@@ -307,7 +309,7 @@ class ScraperMaps:
                 else:
                     self.estado["atividade_atual"] = "Empresa já processada"
                     self.estado["empresas_descartadas"] += 1
-            except (FalhaPagina, WebDriverException) as erro:
+            except (FalhaPagina, WebDriverException, Urllib3HTTPError) as erro:
                 self.estado["atividade_atual"] = "Falha ao verificar empresa"
                 self.estado["empresas_com_falha"] += 1
                 self.estado["ultimo_erro"] = type(erro).__name__
@@ -352,7 +354,7 @@ class ScraperMaps:
                 )
                 self.checkpoint.salvar("running")
                 return True
-            except (FalhaPagina, WebDriverException) as erro:
+            except (FalhaPagina, WebDriverException, Urllib3HTTPError) as erro:
                 self.log.warning(
                     "Falha ao pesquisar %s (%s/3): %s",
                     cidade,

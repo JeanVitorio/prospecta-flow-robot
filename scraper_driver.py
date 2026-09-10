@@ -23,6 +23,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from urllib3.exceptions import HTTPError as Urllib3HTTPError
 
 from execucao_bot import ControleExecucao
 
@@ -78,7 +79,7 @@ class NavegadorMaps:
                 )
                 self.log.info("Chrome iniciado com Selenium Manager.")
                 return
-            except (OSError, WebDriverException) as erro:
+            except (OSError, WebDriverException, Urllib3HTTPError) as erro:
                 ultimo_erro = erro
                 self.log.warning(
                     "Falha ao iniciar Chrome (%s/3): %s",
@@ -134,6 +135,7 @@ class NavegadorMaps:
                 InvalidSessionIdException,
                 TimeoutException,
                 WebDriverException,
+                Urllib3HTTPError,
             ) as erro:
                 ultimo_erro = erro
                 self.screenshot("falha_pagina")

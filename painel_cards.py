@@ -209,6 +209,12 @@ def _status_exibicao(
             return "Pausado"
         if comando == "parado":
             return "Parando"
+        if status_checkpoint == "failed":
+            return "Finalizando após falha"
+        if status_checkpoint == "stopped":
+            return "Finalizando parada"
+        if status_checkpoint == "completed":
+            return "Finalizando execução concluída"
         if status_checkpoint == "starting":
             return "Iniciando"
         if status_sessao != "Inativo":

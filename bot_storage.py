@@ -7,6 +7,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -200,7 +201,14 @@ def _gravar_json(caminho: Path, dados: Any) -> None:
                 arquivo.write("\n")
                 arquivo.flush()
                 os.fsync(arquivo.fileno())
-            os.replace(temporario, caminho)
+            for tentativa in range(8):
+                try:
+                    os.replace(temporario, caminho)
+                    break
+                except PermissionError:
+                    if tentativa == 7:
+                        raise
+                    time.sleep(min(0.05 * (tentativa + 1), 0.25))
         except Exception:
             try:
                 os.unlink(temporario)
@@ -210,8 +218,14 @@ def _gravar_json(caminho: Path, dados: Any) -> None:
 
 
 def _ler_json(caminho: Path, padrao: Any) -> Any:
-    try:
-        with caminho.open("r", encoding="utf-8") as arquivo:
-            return json.load(arquivo)
-    except FileNotFoundError:
-        return padrao
+    for tentativa in range(8):
+        try:
+            with caminho.open("r", encoding="utf-8") as arquivo:
+                return json.load(arquivo)
+        except FileNotFoundError:
+            return padrao
+        except PermissionError:
+            if tentativa == 7:
+                raise
+            time.sleep(min(0.05 * (tentativa + 1), 0.25))
+    return padrao
