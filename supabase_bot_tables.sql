@@ -337,6 +337,39 @@ begin
 end;
 $$;
 
+create or replace function public.prospecta_is_admin(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select exists (
+        select 1
+        from public.user_roles
+        where user_id = p_user_id
+          and role::text = 'leader'
+    );
+$$;
+
+create or replace function public.prospecta_can_access_bot(p_bot_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select auth.uid() is null
+        or public.prospecta_is_admin(auth.uid())
+        or exists (
+            select 1
+            from public.prospecta_bot_configs
+            where id = p_bot_id
+              and lead_owner_id = auth.uid()
+              and deleted_at is null
+        );
+$$;
+
 create or replace function public.prospecta_request_command(
     p_bot_id uuid,
     p_command text,
@@ -350,6 +383,12 @@ as $$
 begin
     if btrim(coalesce(p_command, '')) = '' then
         raise exception 'Comando é obrigatório';
+    end if;
+    if p_command not in ('rodando', 'pausado', 'parado') then
+        raise exception 'Comando inválido';
+    end if;
+    if not public.prospecta_can_access_bot(p_bot_id) then
+        raise exception 'Acesso negado ao bot';
     end if;
 
     return query
@@ -373,6 +412,7 @@ $$;
 create or replace function public.prospecta_get_bot_runtime(p_bot_id uuid)
 returns jsonb
 language sql
+stable
 security definer
 set search_path = pg_catalog, public
 as $$
@@ -398,7 +438,8 @@ as $$
     )
     from public.prospecta_bot_configs config
     where config.id = p_bot_id
-      and config.deleted_at is null;
+      and config.deleted_at is null
+      and public.prospecta_can_access_bot(config.id);
 $$;
 
 create or replace function public.prospecta_get_bot_events(
@@ -407,15 +448,119 @@ create or replace function public.prospecta_get_bot_events(
 )
 returns setof public.prospecta_bot_events
 language sql
+stable
 security definer
 set search_path = pg_catalog, public
 as $$
     select event.*
     from public.prospecta_bot_events event
     where event.bot_id = p_bot_id
+      and public.prospecta_can_access_bot(event.bot_id)
     order by event.created_at desc
     limit least(greatest(coalesce(p_limit, 100), 1), 500);
 $$;
+
+create or replace function public.prospecta_list_runners()
+returns table (
+    id text,
+    name text,
+    environment text,
+    status text,
+    heartbeat_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select runner.id, runner.name, runner.environment, runner.status,
+           runner.heartbeat_at
+    from public.prospecta_bot_runners runner
+    where runner.status = 'online'
+      and runner.heartbeat_at >= clock_timestamp() - interval '90 seconds'
+    order by runner.name;
+$$;
+
+create or replace function public.prospecta_list_bot_runtimes()
+returns table (runtime jsonb)
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select public.prospecta_get_bot_runtime(config.id) as runtime
+    from public.prospecta_bot_configs config
+    where config.deleted_at is null
+      and public.prospecta_can_access_bot(config.id)
+    order by config.name;
+$$;
+
+create or replace function public.prospecta_get_recent_bot_events(
+    p_limit integer default 20
+)
+returns setof public.prospecta_bot_events
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $$
+    select event.*
+    from public.prospecta_bot_events event
+    where public.prospecta_can_access_bot(event.bot_id)
+    order by event.created_at desc
+    limit least(greatest(coalesce(p_limit, 20), 1), 100);
+$$;
+
+grant select, insert, update on table public.prospecta_bot_configs to authenticated;
+grant select on table public.prospecta_bot_checkpoints to authenticated;
+grant select on table public.prospecta_bot_controls to authenticated;
+grant select on table public.prospecta_bot_events to authenticated;
+
+drop policy if exists prospecta_configs_select_scope on public.prospecta_bot_configs;
+create policy prospecta_configs_select_scope
+on public.prospecta_bot_configs for select to authenticated
+using (
+    deleted_at is null
+    and (
+        lead_owner_id = auth.uid()
+        or public.prospecta_is_admin(auth.uid())
+    )
+);
+
+drop policy if exists prospecta_configs_insert_scope on public.prospecta_bot_configs;
+create policy prospecta_configs_insert_scope
+on public.prospecta_bot_configs for insert to authenticated
+with check (
+    lead_owner_id = auth.uid()
+    or public.prospecta_is_admin(auth.uid())
+);
+
+drop policy if exists prospecta_configs_update_scope on public.prospecta_bot_configs;
+create policy prospecta_configs_update_scope
+on public.prospecta_bot_configs for update to authenticated
+using (
+    lead_owner_id = auth.uid()
+    or public.prospecta_is_admin(auth.uid())
+)
+with check (
+    lead_owner_id = auth.uid()
+    or public.prospecta_is_admin(auth.uid())
+);
+
+drop policy if exists prospecta_checkpoints_select_scope on public.prospecta_bot_checkpoints;
+create policy prospecta_checkpoints_select_scope
+on public.prospecta_bot_checkpoints for select to authenticated
+using (public.prospecta_can_access_bot(bot_id));
+
+drop policy if exists prospecta_controls_select_scope on public.prospecta_bot_controls;
+create policy prospecta_controls_select_scope
+on public.prospecta_bot_controls for select to authenticated
+using (public.prospecta_can_access_bot(bot_id));
+
+drop policy if exists prospecta_events_select_scope on public.prospecta_bot_events;
+create policy prospecta_events_select_scope
+on public.prospecta_bot_events for select to authenticated
+using (public.prospecta_can_access_bot(bot_id));
 
 revoke all on function public.prospecta_claim_checkpoint(uuid, text, text, integer)
     from public, anon, authenticated;
@@ -429,6 +574,16 @@ revoke all on function public.prospecta_get_bot_runtime(uuid)
     from public, anon, authenticated;
 revoke all on function public.prospecta_get_bot_events(uuid, integer)
     from public, anon, authenticated;
+revoke all on function public.prospecta_is_admin(uuid)
+    from public, anon, authenticated;
+revoke all on function public.prospecta_can_access_bot(uuid)
+    from public, anon, authenticated;
+revoke all on function public.prospecta_list_runners()
+    from public, anon, authenticated;
+revoke all on function public.prospecta_list_bot_runtimes()
+    from public, anon, authenticated;
+revoke all on function public.prospecta_get_recent_bot_events(integer)
+    from public, anon, authenticated;
 grant execute on function public.prospecta_claim_checkpoint(uuid, text, text, integer)
     to service_role;
 grant execute on function public.prospecta_save_checkpoint(uuid, text, text, jsonb, text, bigint, integer)
@@ -441,6 +596,22 @@ grant execute on function public.prospecta_get_bot_runtime(uuid)
     to service_role;
 grant execute on function public.prospecta_get_bot_events(uuid, integer)
     to service_role;
+grant execute on function public.prospecta_is_admin(uuid)
+    to service_role, authenticated;
+grant execute on function public.prospecta_can_access_bot(uuid)
+    to service_role, authenticated;
+grant execute on function public.prospecta_request_command(uuid, text, text)
+    to authenticated;
+grant execute on function public.prospecta_get_bot_runtime(uuid)
+    to authenticated;
+grant execute on function public.prospecta_get_bot_events(uuid, integer)
+    to authenticated;
+grant execute on function public.prospecta_list_runners()
+    to service_role, authenticated;
+grant execute on function public.prospecta_list_bot_runtimes()
+    to service_role, authenticated;
+grant execute on function public.prospecta_get_recent_bot_events(integer)
+    to service_role, authenticated;
 
 revoke all on function public.prospecta_touch_versioned_row() from public, anon, authenticated;
 revoke all on function public.prospecta_touch_row() from public, anon, authenticated;

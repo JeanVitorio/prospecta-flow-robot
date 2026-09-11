@@ -107,19 +107,11 @@ class CardBot(ttk.Frame):
         status = _status_exibicao(ativo, status_sessao, str(status_checkpoint), comando)
         cidade_atual = estado.get("cidade_atual") or "—"
         ultima_cidade = estado.get("ultima_cidade") or "—"
-        ultimo_lead = (
-            estado.get("ultimo_lead_incluido")
-            or estado.get("ultimo_lead_salvo")
-            or "—"
-        )
         atividade = estado.get("atividade_atual") or "Aguardando início"
-        empresa_atual = estado.get("empresa_atual") or "—"
         item_atual = int(estado.get("item_atual") or 0)
         total_itens = int(estado.get("total_itens") or 0)
         indice_cidade = int(estado.get("indice_cidade") or 0)
         total_cidades = int(estado.get("total_cidades") or 0)
-        ultima_empresa = estado.get("ultima_empresa_verificada") or "—"
-        resultado = estado.get("ultimo_resultado_verificacao") or "—"
         executor = estado.get("executor") or {}
         executor_nome = executor.get("id") or "—"
         estado_importador = (
@@ -138,15 +130,15 @@ class CardBot(ttk.Frame):
         ultimo_importado = (
             estado_importador.get("ultimo_lead_importado") or "—"
         )
-        progresso = (
-            f" ({item_atual} de {total_itens})"
-            if item_atual and total_itens
-            else ""
-        )
         progresso_cidade = (
-            f" ({indice_cidade} de {total_cidades})"
+            f"Cidade {indice_cidade} de {total_cidades}"
             if indice_cidade and total_cidades
-            else ""
+            else "Cidade ainda não iniciada"
+        )
+        progresso_empresas = (
+            f"{item_atual} de {total_itens} verificadas"
+            if total_itens
+            else "aguardando coleta"
         )
         origem_estado = "remoto" if checkpoint is self._remoto else "local"
         if not checkpoint:
@@ -155,12 +147,11 @@ class CardBot(ttk.Frame):
             origem_estado = "local — sincronização pendente"
         self._estado.set(
             f"Status: {status}   |   Checkpoint: {origem_estado}\n"
-            f"Executor: {executor_nome}   |   Cidade atual: "
-            f"{cidade_atual}{progresso_cidade}   |   Última: {ultima_cidade}\n"
+            f"Executor: {executor_nome}   |   {progresso_cidade}: "
+            f"{cidade_atual}   |   Última: {ultima_cidade}\n"
             f"Atividade atual: {atividade}\n"
-            f"Empresa sendo verificada: {empresa_atual}{progresso}\n"
-            f"Última verificada: {ultima_empresa}   |   Resultado: {resultado}\n"
-            f"Último lead salvo: {ultimo_lead}\n"
+            f"Empresas encontradas na cidade: {total_itens}   |   "
+            f"Progresso: {progresso_empresas}\n"
             f"Importador: {status_importador} — {atividade_importador}   |   "
             f"Último importado: {ultimo_importado}"
         )

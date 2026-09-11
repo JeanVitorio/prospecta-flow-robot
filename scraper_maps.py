@@ -160,6 +160,7 @@ class ScraperMaps:
             "ultimo_erro": "",
             "itens": [],
             "proximo_item": 0,
+            "lote_csv_versao": 0,
             "cidades_concluidas": [],
             "cidades_com_falha": [],
             "concluido": False,
@@ -231,6 +232,9 @@ class ScraperMaps:
                         {"cidade": cidade},
                         "warning",
                     )
+                self.estado["lote_csv_versao"] = (
+                    int(self.estado.get("lote_csv_versao") or 0) + 1
+                )
                 self.estado.update(
                     cidade_atual="",
                     atividade_atual=f"Pesquisa em {cidade} finalizada",
@@ -268,7 +272,6 @@ class ScraperMaps:
                 item_atual=indice + 1,
                 total_itens=len(itens),
             )
-            self.checkpoint.salvar("running")
             try:
                 url_item = normalizar_url_maps(item["url"])
                 if url_item not in self.urls_existentes:
@@ -294,11 +297,6 @@ class ScraperMaps:
                                 )
                                 + 1,
                                 atividade_atual="Lead aprovado e salvo",
-                            )
-                            self.checkpoint.registrar_evento(
-                                "lead_incluido",
-                                f"Lead incluído: {linha['Nome']}.",
-                                {"empresa": linha["Nome"], "cidade": cidade},
                             )
                         else:
                             self.estado["atividade_atual"] = "Lead já salvo anteriormente"
@@ -326,7 +324,7 @@ class ScraperMaps:
                 ultima_verificacao_em=agora_iso(),
             )
             self.estado["proximo_item"] = indice + 1
-            self.checkpoint.salvar("running")
+            self.checkpoint.salvar_local("running")
         return True
 
     def _coletar_com_recuperacao(self, cidade: str) -> bool:
@@ -341,7 +339,7 @@ class ScraperMaps:
                     item_atual=0,
                     total_itens=0,
                 )
-                self.checkpoint.salvar("running")
+                self.checkpoint.salvar_local("running")
                 itens = self.navegador.coletar_itens(cidade)
                 self.estado.update(
                     cidade_atual=cidade,
@@ -352,7 +350,7 @@ class ScraperMaps:
                     empresas_coletadas=int(self.estado["empresas_coletadas"])
                     + len(itens),
                 )
-                self.checkpoint.salvar("running")
+                self.checkpoint.salvar_local("running")
                 return True
             except (FalhaPagina, WebDriverException, Urllib3HTTPError) as erro:
                 self.log.warning(

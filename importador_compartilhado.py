@@ -12,6 +12,7 @@ from typing import Any
 
 import bot_config
 import bot_repository
+import bot_storage as local
 from execucao_bot import (
     CheckpointExecucao,
     ControleExecucao,
@@ -43,6 +44,7 @@ class Importador:
         self.supabase: Any | None = None
         self.owner_id = self.config.get("lead_owner_id")
         self.stage_id: str | None = None
+        self.existentes: set[str] | None = None
         self.estado: dict[str, Any] = {}
         self.checkpoint_adquirido = False
 
@@ -131,6 +133,7 @@ class Importador:
         self.estado.setdefault("leads_importados", 0)
         self.estado.setdefault("falhas_importacao", 0)
         self.estado.setdefault("ultimo_erro", "")
+        self.estado.setdefault("lote_csv_processado", 0)
 
     def _monitorar(self) -> None:
         while True:
@@ -142,12 +145,16 @@ class Importador:
                     if self.csv_path.exists()
                     else None
                 )
-                if mtime != self.estado.get("mtime_csv"):
+                lote_disponivel = self._lote_csv_disponivel()
+                lote_processado = int(
+                    self.estado.get("lote_csv_processado") or 0
+                )
+                if mtime is not None and lote_disponivel > lote_processado:
                     self.estado["atividade_atual"] = "Processando novos leads"
                     inseridos, falhas = self._processar_csv()
                     self.estado["ultima_execucao"] = agora_iso()
-                    if not falhas:
-                        self.estado["mtime_csv"] = mtime
+                    self.estado["mtime_csv"] = mtime
+                    self.estado["lote_csv_processado"] = lote_disponivel
                     self.checkpoint.salvar("running")
                     if inseridos:
                         self.log.info(
@@ -159,7 +166,7 @@ class Importador:
                 self.log.error(
                     "Erro temporário no ciclo de importação; haverá nova tentativa."
                 )
-                self.checkpoint.salvar("degraded")
+                self.checkpoint.salvar_local("degraded")
             self.controle.esperar(10)
 
     def _processar_csv(
@@ -168,6 +175,8 @@ class Importador:
         if not self.csv_path.exists():
             return 0, 0
         existentes = self._carregar_existentes()
+        pendentes: list[tuple[dict[str, str], str]] = []
+        chaves_pendentes: set[str] = set()
         inseridos = 0
         falhas = 0
         with self.csv_path.open(
@@ -182,54 +191,59 @@ class Importador:
                     continue
                 self.estado["leads_lidos"] = int(self.estado["leads_lidos"]) + 1
                 chave = self._chave(nome, telefone)
-                if chave in existentes:
+                if chave in existentes or chave in chaves_pendentes:
                     continue
-                self.estado.update(
-                    atividade_atual="Importando lead no Supabase",
-                    empresa_atual=nome,
-                )
-                self.checkpoint.salvar(
-                    "running" if respeitar_controle else "stopping"
-                )
-                try:
-                    self._inserir(row)
+                pendentes.append((row, chave))
+                chaves_pendentes.add(chave)
+
+        for inicio in range(0, len(pendentes), 100):
+            if respeitar_controle:
+                self.controle.verificar()
+            lote = pendentes[inicio : inicio + 100]
+            self.estado.update(
+                atividade_atual="Importando lote de leads no Supabase",
+                empresa_atual="",
+            )
+            self.checkpoint.salvar_local(
+                "running" if respeitar_controle else "stopping"
+            )
+            try:
+                self._inserir_lote([row for row, _chave in lote])
+                for row, chave in lote:
                     existentes.add(chave)
                     inseridos += 1
                     self.estado.update(
-                        atividade_atual="Lead importado com sucesso",
-                        ultimo_lead_importado=nome,
+                        ultimo_lead_importado=row["Nome"].strip(),
                         ultimo_lead_importado_em=agora_iso(),
                         leads_importados=int(self.estado["leads_importados"]) + 1,
                     )
-                    self.checkpoint.registrar_evento(
-                        "lead_importado",
-                        f"Lead importado: {nome}.",
-                        {"empresa": nome},
-                    )
-                    self.log.info("Lead inserido: %s", nome)
-                except Exception as erro:
-                    falhas += 1
-                    self.estado.update(
-                        atividade_atual="Falha ao importar lead",
-                        falhas_importacao=int(self.estado["falhas_importacao"]) + 1,
-                        ultimo_erro=type(erro).__name__,
-                    )
-                    self.checkpoint.registrar_evento(
-                        "lead_importacao_falhou",
-                        f"Falha ao importar o lead {nome}.",
-                        {"empresa": nome, "tipo_erro": type(erro).__name__},
-                        "error",
-                    )
-                    self.log.error(
-                        "Falha de persistência ao inserir o lead '%s'.", nome
-                    )
-                self.estado["ultima_execucao"] = agora_iso()
-                self.checkpoint.salvar(
-                    "running" if respeitar_controle else "stopping"
+            except Exception as erro:
+                falhas += len(lote)
+                self.estado.update(
+                    atividade_atual="Falha ao importar lote de leads",
+                    falhas_importacao=(
+                        int(self.estado["falhas_importacao"]) + len(lote)
+                    ),
+                    ultimo_erro=type(erro).__name__,
                 )
+                self.log.error(
+                    "Falha de persistência ao inserir lote de %s lead(s).",
+                    len(lote),
+                )
+
+        self.estado["ultima_execucao"] = agora_iso()
+        if inseridos or falhas:
+            self.checkpoint.registrar_evento(
+                "lote_leads_processado",
+                "Lote de leads processado.",
+                {"importados": inseridos, "falhas": falhas},
+                "warning" if falhas else "info",
+            )
         return inseridos, falhas
 
     def _carregar_existentes(self) -> set[str]:
+        if self.existentes is not None:
+            return self.existentes
         existentes: set[str] = set()
         inicio = 0
         tamanho_pagina = 1000
@@ -251,8 +265,24 @@ class Importador:
                 for item in pagina
             )
             if len(pagina) < tamanho_pagina:
-                return existentes
+                self.existentes = existentes
+                return self.existentes
             inicio += tamanho_pagina
+
+    def _lote_csv_disponivel(self) -> int:
+        """Importa somente quando o scraper encerra o processamento da cidade."""
+        try:
+            checkpoint = local.ler_checkpoint(self.slug, "scraper") or {}
+        except (OSError, ValueError):
+            return int(self.estado.get("lote_csv_processado") or 0)
+        estado_scraper = checkpoint.get("state") or {}
+        versao = estado_scraper.get("lote_csv_versao")
+        if versao is None:
+            versao = len(estado_scraper.get("cidades_concluidas") or [])
+        try:
+            return int(versao)
+        except (TypeError, ValueError):
+            return int(self.estado.get("lote_csv_processado") or 0)
 
     def _resolver_responsavel(self) -> None:
         if self.owner_id:
@@ -281,7 +311,12 @@ class Importador:
         )
         return resposta.data[0]["id"] if resposta.data else None
 
-    def _inserir(self, row: dict[str, str]) -> None:
+    def _inserir_lote(self, rows: list[dict[str, str]]) -> None:
+        payloads = [self._payload(row) for row in rows]
+        if payloads:
+            self.supabase.table("leads").insert(payloads).execute()
+
+    def _payload(self, row: dict[str, str]) -> dict[str, Any]:
         agora = datetime.now(timezone.utc).isoformat()
         payload: dict[str, Any] = {
             "name": row["Nome"].strip(),
@@ -297,7 +332,7 @@ class Importador:
         }
         if self.stage_id:
             payload["stage_id"] = self.stage_id
-        self.supabase.table("leads").insert(payload).execute()
+        return payload
 
     def _termo_excluido(self, nome: str) -> str | None:
         nome_normalizado = self._normalizar(nome)

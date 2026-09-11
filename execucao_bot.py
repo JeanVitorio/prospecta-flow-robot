@@ -110,8 +110,8 @@ class CheckpointExecucao:
         self._gravar_local("running")
         return self.estado
 
-    def iniciar_heartbeat(self, intervalo: int = 20) -> None:
-        """Mantém o estado remoto vivo mesmo durante operações longas."""
+    def iniciar_heartbeat(self, intervalo: int = 120) -> None:
+        """Renova o lease em baixa frequência durante operações longas."""
         if self._thread_heartbeat and self._thread_heartbeat.is_alive():
             return
         self._parar_heartbeat.clear()
@@ -142,11 +142,7 @@ class CheckpointExecucao:
     def salvar(self, status: str = "running") -> None:
         """Salva local primeiro e tenta renovar o lease no Supabase."""
         with self._lock:
-            self._status_atual = status
-            self.estado["status"] = status
-            self.estado["heartbeat_em"] = agora_iso()
-            self.estado["checkpoint_salvo_em"] = agora_iso()
-            self._gravar_local(status)
+            self.salvar_local(status)
             try:
                 if not self.com_lease:
                     registro = remoto.claim_checkpoint(
@@ -161,7 +157,7 @@ class CheckpointExecucao:
                     self.bot_id,
                     self.process_name,
                     self.runner_id,
-                    self.estado,
+                    self._estado_para_remoto(),
                     status=status,
                     expected_version=self.version,
                     lease_seconds=self.lease_seconds,
@@ -176,6 +172,15 @@ class CheckpointExecucao:
                     "Checkpoint preservado localmente; falha na sincronização remota: %s",
                     erro,
                 )
+
+    def salvar_local(self, status: str = "running") -> None:
+        """Atualiza a interface e a retomada local sem acessar o Supabase."""
+        with self._lock:
+            self._status_atual = status
+            self.estado["status"] = status
+            self.estado["heartbeat_em"] = agora_iso()
+            self.estado["checkpoint_salvo_em"] = agora_iso()
+            self._gravar_local(status)
 
     def liberar(self, status: str = "idle") -> None:
         """Persiste o estado final e libera o lease quando disponível."""
@@ -260,6 +265,20 @@ class CheckpointExecucao:
             envelope["erro_remoto"] = erro_remoto
         local.gravar_checkpoint(self.slug, self.process_name, envelope)
 
+    def _estado_para_remoto(self) -> dict[str, Any]:
+        """Mantém no remoto apenas o resumo necessário para operação."""
+        estado = dict(self.estado)
+        if self.process_name == "scraper":
+            estado.update(
+                itens=[],
+                proximo_item=0,
+                item_atual=0,
+                empresa_atual="",
+            )
+            estado.pop("ultima_empresa_verificada", None)
+            estado.pop("ultimo_resultado_verificacao", None)
+        return estado
+
     @staticmethod
     def _estado_envelope(envelope: dict[str, Any] | None) -> dict[str, Any]:
         estado = envelope.get("state") if isinstance(envelope, dict) else None
@@ -275,7 +294,7 @@ class CheckpointExecucao:
             return dict(estado_local)
         marca_local = str(estado_local.get("checkpoint_salvo_em", ""))
         marca_remota = str(estado_remoto.get("checkpoint_salvo_em", ""))
-        return dict(estado_local if marca_local > marca_remota else estado_remoto)
+        return dict(estado_local if marca_local >= marca_remota else estado_remoto)
 
 
 class ControleExecucao:
@@ -306,7 +325,7 @@ class ControleExecucao:
             self._comando = str(
                 controle.get("comando", self._comando)
             ).casefold()
-            self._proxima_consulta_remota = agora + 2
+            self._proxima_consulta_remota = agora + 10
         comando = self._comando
         if comando == "parado":
             self.checkpoint.salvar("stopped")
@@ -332,7 +351,7 @@ class ControleExecucao:
             if agora >= self._proxima_consulta_remota:
                 controle = bot_config.ler_comando(self.slug) or {}
                 comando = str(controle.get("comando", comando)).casefold()
-                self._proxima_consulta_remota = agora + 2
+                self._proxima_consulta_remota = agora + 10
             self._comando = comando
             if time.monotonic() >= proxima_renovacao:
                 self.checkpoint.salvar("paused")

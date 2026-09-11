@@ -322,6 +322,20 @@ def carregar_runtime_bot(bot_id: str) -> dict[str, Any] | None:
     return dados if isinstance(dados, dict) else None
 
 
+def listar_runtimes_bots() -> list[dict[str, Any]]:
+    """Carrega todos os runtimes em uma única chamada ao Supabase."""
+    dados = _rpc(
+        "prospecta_list_bot_runtimes",
+        {},
+        "listar os runtimes dos bots",
+    )
+    return [
+        item["runtime"]
+        for item in dados or []
+        if isinstance(item, dict) and isinstance(item.get("runtime"), dict)
+    ]
+
+
 def carregar_eventos_bot(
     bot_id: str, limite: int = 100
 ) -> list[dict[str, Any]]:

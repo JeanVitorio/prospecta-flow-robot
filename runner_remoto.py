@@ -46,12 +46,12 @@ class RunnerRemoto:
                     agora = time.monotonic()
                     if agora >= proximo_heartbeat:
                         self._registrar("online")
-                        proximo_heartbeat = agora + 15
+                        proximo_heartbeat = agora + 60
                     self._processar_comandos()
                     self.processos.limpar_finalizados()
                 except bot_repository.ErroPersistencia as erro:
                     LOG.warning("Supabase indisponível; nova tentativa em breve: %s", erro)
-                time.sleep(2)
+                time.sleep(10)
         except KeyboardInterrupt:
             LOG.info("Encerramento do executor solicitado.")
         finally:

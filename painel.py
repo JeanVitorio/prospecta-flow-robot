@@ -228,20 +228,24 @@ class PainelProspecta:
                 dict[str, Any] | None,
             ],
         ]:
-            resultado = {}
-            for config in configs:
-                if not config.get("id"):
+            resultado = {
+                config["slug"]: (None, None, None)
+                for config in configs
+                if config.get("id")
+            }
+            runtimes = bot_repository.listar_runtimes_bots()
+            slugs_validos = set(resultado)
+            for runtime in runtimes:
+                config_runtime = runtime.get("config") or {}
+                slug = config_runtime.get("slug")
+                if slug not in slugs_validos:
                     continue
-                try:
-                    runtime = bot_repository.carregar_runtime_bot(config["id"]) or {}
-                    checkpoints = runtime.get("checkpoints") or {}
-                    resultado[config["slug"]] = (
-                        checkpoints.get("scraper"),
-                        checkpoints.get("importador"),
-                        runtime.get("control"),
-                    )
-                except bot_repository.ErroPersistencia:
-                    resultado[config["slug"]] = (None, None, None)
+                checkpoints = runtime.get("checkpoints") or {}
+                resultado[slug] = (
+                    checkpoints.get("scraper"),
+                    checkpoints.get("importador"),
+                    runtime.get("control"),
+                )
             return resultado
 
         def concluir(_resultado: Any) -> None:
@@ -311,7 +315,7 @@ class PainelProspecta:
                     self._editar(config)
         agora = time.monotonic()
         if agora >= self._proxima_busca_remota:
-            self._proxima_busca_remota = agora + 2
+            self._proxima_busca_remota = agora + 15
             self._buscar_checkpoints_remotos(self._configs)
         self.raiz.after(1000, self._tick_local)
 
