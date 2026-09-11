@@ -31,6 +31,7 @@ class ListagemConfigs(list):
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _COMANDO = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
+_FILTROS_PRESENCA = {"any", "with", "without"}
 
 
 def pasta_bot(slug: str):
@@ -232,6 +233,23 @@ def validar_config(config: dict[str, Any]) -> dict[str, Any]:
     dados["palavras_incluidas"] = _lista(
         dados.get("palavras_incluidas", []), "Palavras incluídas"
     )
+    dados["filtro_site"] = _filtro_presenca(
+        dados.get("filtro_site", "without"), "Filtro de site"
+    )
+    dados["filtro_telefone"] = _filtro_presenca(
+        dados.get("filtro_telefone", "any"), "Filtro de telefone"
+    )
+    dados["filtro_avaliacoes_ativo"] = _booleano(
+        dados.get("filtro_avaliacoes_ativo", True), "Filtro de avaliações"
+    )
+    dados["filtro_palavras_excluidas_ativo"] = _booleano(
+        dados.get("filtro_palavras_excluidas_ativo", True),
+        "Filtro de palavras excluídas",
+    )
+    dados["filtro_palavras_incluidas_ativo"] = _booleano(
+        dados.get("filtro_palavras_incluidas_ativo", True),
+        "Filtro de palavras incluídas",
+    )
     sobrepostas = set(dados["palavras_excluidas"]) & set(dados["palavras_incluidas"])
     if sobrepostas:
         raise ErroValidacao("Uma palavra não pode estar nos dois filtros.")
@@ -279,6 +297,20 @@ def _lista(valor: Any, campo: str, obrigatoria: bool = False) -> list[str]:
 def _inteiro(valor: Any, campo: str, minimo: int) -> int:
     if isinstance(valor, bool) or not isinstance(valor, int) or valor < minimo:
         raise ErroValidacao(f"{campo} deve ser inteiro maior ou igual a {minimo}.")
+    return valor
+
+
+def _booleano(valor: Any, campo: str) -> bool:
+    if not isinstance(valor, bool):
+        raise ErroValidacao(f"{campo} deve ser verdadeiro ou falso.")
+    return valor
+
+
+def _filtro_presenca(valor: Any, campo: str) -> str:
+    if not isinstance(valor, str) or valor not in _FILTROS_PRESENCA:
+        raise ErroValidacao(
+            f"{campo} deve ser 'any', 'with' ou 'without'."
+        )
     return valor
 
 

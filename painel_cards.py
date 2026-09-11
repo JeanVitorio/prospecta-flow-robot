@@ -109,7 +109,11 @@ class CardBot(ttk.Frame):
         ultima_cidade = estado.get("ultima_cidade") or "—"
         atividade = estado.get("atividade_atual") or "Aguardando início"
         item_atual = int(estado.get("item_atual") or 0)
-        total_itens = int(estado.get("total_itens") or 0)
+        total_itens = int(
+            estado.get("total_itens")
+            or estado.get("ultima_cidade_total_empresas")
+            or 0
+        )
         indice_cidade = int(estado.get("indice_cidade") or 0)
         total_cidades = int(estado.get("total_cidades") or 0)
         executor = estado.get("executor") or {}

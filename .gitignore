@@ -6,3 +6,4 @@ logs/
 screenshots/
 *.log
 *.csv
+web/

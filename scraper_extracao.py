@@ -61,15 +61,24 @@ class ExtratorMaps:
         possui_site = self._possui_site(driver)
         telefone = self._extrair_telefone(driver)
         self.log.info(
-            "%s | categoria: %s | avaliações: %s | %s",
+            "%s | categoria: %s | avaliações: %s | %s | %s",
             nome,
             categoria or "não identificada",
             avaliacoes if avaliacoes is not None else "não identificadas",
             "tem site" if possui_site else "sem site",
+            "tem telefone" if telefone != "não encontrado" else "sem telefone",
         )
-        if (
-            possui_site
-            or avaliacoes is None
+        if not self._aceitar_presenca(
+            possui_site, self.config.get("filtro_site", "without")
+        ):
+            return None
+        if not self._aceitar_presenca(
+            telefone != "não encontrado",
+            self.config.get("filtro_telefone", "any"),
+        ):
+            return None
+        if self.config.get("filtro_avaliacoes_ativo", True) and (
+            avaliacoes is None
             or avaliacoes < self.config["minimo_avaliacoes"]
         ):
             return None
@@ -83,14 +92,22 @@ class ExtratorMaps:
 
     def _aceitar_filtros(self, nome: str, categoria: str) -> bool:
         combinado = normalizar_texto(f"{nome} {categoria}")
-        excluidas = [
-            normalizar_texto(str(palavra))
-            for palavra in self.config["palavras_excluidas"]
-        ]
-        incluidas = [
-            normalizar_texto(str(palavra))
-            for palavra in self.config["palavras_incluidas"]
-        ]
+        excluidas = (
+            [
+                normalizar_texto(str(palavra))
+                for palavra in self.config["palavras_excluidas"]
+            ]
+            if self.config.get("filtro_palavras_excluidas_ativo", True)
+            else []
+        )
+        incluidas = (
+            [
+                normalizar_texto(str(palavra))
+                for palavra in self.config["palavras_incluidas"]
+            ]
+            if self.config.get("filtro_palavras_incluidas_ativo", True)
+            else []
+        )
         termo_excluido = next(
             (termo for termo in excluidas if termo and termo in combinado), None
         )
@@ -108,6 +125,14 @@ class ExtratorMaps:
                 "Descartado por não atender ao filtro positivo: %s", nome
             )
             return False
+        return True
+
+    @staticmethod
+    def _aceitar_presenca(presente: bool, filtro: str) -> bool:
+        if filtro == "with":
+            return presente
+        if filtro == "without":
+            return not presente
         return True
 
     @staticmethod

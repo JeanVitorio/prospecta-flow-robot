@@ -335,6 +335,8 @@ class Importador:
         return payload
 
     def _termo_excluido(self, nome: str) -> str | None:
+        if not self.config.get("filtro_palavras_excluidas_ativo", True):
+            return None
         nome_normalizado = self._normalizar(nome)
         for palavra in self.config["palavras_excluidas"]:
             termo = self._normalizar(palavra)

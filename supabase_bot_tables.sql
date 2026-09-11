@@ -12,11 +12,16 @@ create table if not exists public.prospecta_bot_configs (
     niche text not null,
     cities text[] not null default '{}',
     min_reviews integer not null default 0,
+    min_reviews_enabled boolean not null default true,
     estimated_ticket numeric(14, 2) not null,
     headless boolean not null default true,
+    website_filter text not null default 'without',
+    phone_filter text not null default 'any',
     max_scrolls integer not null default 10,
     excluded_words text[] not null default '{}',
+    excluded_words_enabled boolean not null default true,
     included_words text[] not null default '{}',
+    included_words_enabled boolean not null default true,
     version bigint not null default 1,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
@@ -27,11 +32,47 @@ create table if not exists public.prospecta_bot_configs (
     constraint prospecta_bot_configs_search_not_blank check (btrim(search_term) <> ''),
     constraint prospecta_bot_configs_niche_not_blank check (btrim(niche) <> ''),
     constraint prospecta_bot_configs_min_reviews_valid check (min_reviews >= 0),
+    constraint prospecta_bot_configs_website_filter_valid check (
+        website_filter in ('any', 'with', 'without')
+    ),
+    constraint prospecta_bot_configs_phone_filter_valid check (
+        phone_filter in ('any', 'with', 'without')
+    ),
     constraint prospecta_bot_configs_ticket_valid check (estimated_ticket >= 0),
     constraint prospecta_bot_configs_max_scrolls_valid check (max_scrolls > 0),
     constraint prospecta_bot_configs_version_valid check (version > 0),
     constraint prospecta_bot_configs_dates_valid check (deleted_at is null or deleted_at >= created_at)
 );
+
+alter table public.prospecta_bot_configs
+    add column if not exists min_reviews_enabled boolean not null default true,
+    add column if not exists website_filter text not null default 'without',
+    add column if not exists phone_filter text not null default 'any',
+    add column if not exists excluded_words_enabled boolean not null default true,
+    add column if not exists included_words_enabled boolean not null default true;
+
+do $$
+begin
+    if not exists (
+        select 1 from pg_catalog.pg_constraint
+        where conname = 'prospecta_bot_configs_website_filter_valid'
+          and conrelid = 'public.prospecta_bot_configs'::regclass
+    ) then
+        alter table public.prospecta_bot_configs
+            add constraint prospecta_bot_configs_website_filter_valid
+            check (website_filter in ('any', 'with', 'without'));
+    end if;
+    if not exists (
+        select 1 from pg_catalog.pg_constraint
+        where conname = 'prospecta_bot_configs_phone_filter_valid'
+          and conrelid = 'public.prospecta_bot_configs'::regclass
+    ) then
+        alter table public.prospecta_bot_configs
+            add constraint prospecta_bot_configs_phone_filter_valid
+            check (phone_filter in ('any', 'with', 'without'));
+    end if;
+end;
+$$;
 
 create unique index if not exists prospecta_bot_configs_slug_active_uidx
     on public.prospecta_bot_configs (slug)

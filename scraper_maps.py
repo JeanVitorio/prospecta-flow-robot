@@ -143,6 +143,7 @@ class ScraperMaps:
             "empresa_atual": "",
             "item_atual": 0,
             "total_itens": 0,
+            "ultima_cidade_total_empresas": 0,
             "indice_cidade": 0,
             "total_cidades": len(self.config["cidades"]),
             "ultima_cidade_concluida": "",
@@ -234,6 +235,9 @@ class ScraperMaps:
                     )
                 self.estado["lote_csv_versao"] = (
                     int(self.estado.get("lote_csv_versao") or 0) + 1
+                )
+                self.estado["ultima_cidade_total_empresas"] = int(
+                    self.estado.get("total_itens") or 0
                 )
                 self.estado.update(
                     cidade_atual="",

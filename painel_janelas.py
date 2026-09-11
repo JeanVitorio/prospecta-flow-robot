@@ -14,6 +14,12 @@ from painel_processos import caminhos_logs
 class JanelaBot(tk.Toplevel):
     """Formulário único para criação e edição de configurações."""
 
+    OPCOES_PRESENCA = {
+        "Com ou sem": "any",
+        "Somente com": "with",
+        "Somente sem": "without",
+    }
+
     CAMPOS = (
         ("nome", "Nome"),
         ("lead_owner_id", "UID lead_owner_id"),
@@ -33,14 +39,33 @@ class JanelaBot(tk.Toplevel):
     ) -> None:
         super().__init__(mestre)
         self.title("Editar bot" if config else "Novo bot")
-        self.geometry("720x760")
-        self.minsize(620, 680)
+        self.geometry("720x900")
+        self.minsize(620, 760)
         self.transient(mestre)
         self.grab_set()
         self._config = dict(config or {})
         self._ao_salvar = ao_salvar
         self._variaveis: dict[str, tk.StringVar] = {}
         self._headless = tk.BooleanVar(value=self._config.get("headless", True))
+        self._filtro_site = tk.StringVar(
+            value=self._rotulo_presenca(
+                self._config.get("filtro_site", "without")
+            )
+        )
+        self._filtro_telefone = tk.StringVar(
+            value=self._rotulo_presenca(
+                self._config.get("filtro_telefone", "any")
+            )
+        )
+        self._filtro_avaliacoes = tk.BooleanVar(
+            value=self._config.get("filtro_avaliacoes_ativo", True)
+        )
+        self._filtro_excluidas = tk.BooleanVar(
+            value=self._config.get("filtro_palavras_excluidas_ativo", True)
+        )
+        self._filtro_incluidas = tk.BooleanVar(
+            value=self._config.get("filtro_palavras_incluidas_ativo", True)
+        )
         self._montar()
 
     def _montar(self) -> None:
@@ -66,6 +91,29 @@ class JanelaBot(tk.Toplevel):
         ttk.Checkbutton(
             corpo, text="Executar navegador em modo headless", variable=self._headless
         ).grid(row=linha, column=1, sticky="w", pady=5)
+        for rotulo, variavel in (
+            ("Filtro de site", self._filtro_site),
+            ("Filtro de telefone", self._filtro_telefone),
+        ):
+            linha += 1
+            ttk.Label(corpo, text=rotulo).grid(
+                row=linha, column=0, sticky="w", padx=(0, 12), pady=4
+            )
+            ttk.Combobox(
+                corpo,
+                textvariable=variavel,
+                values=tuple(self.OPCOES_PRESENCA),
+                state="readonly",
+            ).grid(row=linha, column=1, sticky="ew", pady=4)
+        for texto, variavel in (
+            ("Aplicar mínimo de avaliações", self._filtro_avaliacoes),
+            ("Aplicar palavras excluídas", self._filtro_excluidas),
+            ("Aplicar palavras incluídas", self._filtro_incluidas),
+        ):
+            linha += 1
+            ttk.Checkbutton(corpo, text=texto, variable=variavel).grid(
+                row=linha, column=1, sticky="w", pady=3
+            )
         self._textos: dict[str, tk.Text] = {}
         for chave, rotulo in (
             ("cidades", "Cidades (uma por linha)"),
@@ -121,6 +169,19 @@ class JanelaBot(tk.Toplevel):
             dados["minimo_avaliacoes"] = int(dados["minimo_avaliacoes"])
             dados["max_scrolls"] = int(dados["max_scrolls"])
             dados["headless"] = self._headless.get()
+            dados["filtro_site"] = self.OPCOES_PRESENCA[
+                self._filtro_site.get()
+            ]
+            dados["filtro_telefone"] = self.OPCOES_PRESENCA[
+                self._filtro_telefone.get()
+            ]
+            dados["filtro_avaliacoes_ativo"] = self._filtro_avaliacoes.get()
+            dados["filtro_palavras_excluidas_ativo"] = (
+                self._filtro_excluidas.get()
+            )
+            dados["filtro_palavras_incluidas_ativo"] = (
+                self._filtro_incluidas.get()
+            )
             for chave, texto in self._textos.items():
                 dados[chave] = _linhas(texto.get("1.0", "end"))
             if not dados["cidades"]:
@@ -134,6 +195,17 @@ class JanelaBot(tk.Toplevel):
             self.mostrar_erro(
                 "Revise UID, ticket, avaliações, rolagens e cidades informados."
             )
+
+    @classmethod
+    def _rotulo_presenca(cls, valor: str) -> str:
+        return next(
+            (
+                rotulo
+                for rotulo, filtro in cls.OPCOES_PRESENCA.items()
+                if filtro == valor
+            ),
+            "Com ou sem",
+        )
 
     def definir_processando(self, ativo: bool, mensagem: str = "") -> None:
         self._botao_salvar.configure(state="disabled" if ativo else "normal")
