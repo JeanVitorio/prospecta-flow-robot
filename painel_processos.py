@@ -36,6 +36,16 @@ class GerenciadorProcessos:
                     continue
                 processos[nome] = self._abrir(slug, nome)
 
+    def iniciar_mensagens(self, slug: str) -> None:
+        """Inicia um único motor de mensagens para a configuração remota."""
+        chave = f"mensagens:{slug}"
+        with self._lock:
+            processos = self._processos.setdefault(chave, {})
+            atual = processos.get("mensagens")
+            if atual is not None and atual.poll() is None:
+                return
+            processos["mensagens"] = self._abrir(slug, "mensagens")
+
     def definir_comando(self, slug: str, comando: str) -> None:
         """Encaminha pausa, continuação ou parada ao contrato existente."""
         bot_config.definir_comando(slug, comando)
@@ -78,7 +88,11 @@ class GerenciadorProcessos:
                     del self._processos[slug]
 
     def _abrir(self, slug: str, processo: str) -> subprocess.Popen[Any]:
-        pasta = bot_config.pasta_bot(slug)
+        pasta = (
+            Path(__file__).resolve().parent / "dados_mensagens" / slug
+            if processo == "mensagens"
+            else bot_config.pasta_bot(slug)
+        )
         pasta.mkdir(parents=True, exist_ok=True)
         caminho_log = pasta / f"painel_{processo}.log"
         log = caminho_log.open("a", encoding="utf-8", buffering=1)

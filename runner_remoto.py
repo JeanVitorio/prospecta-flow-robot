@@ -11,7 +11,9 @@ from typing import Any
 
 import bot_config
 import bot_repository
+import message_repository
 from painel_processos import GerenciadorProcessos
+from whatsapp_gateway_process import GatewayWhatsApp
 
 LOG = logging.getLogger("prospecta_runner")
 logging.basicConfig(
@@ -35,10 +37,13 @@ class RunnerRemoto:
         self.nome = os.getenv("PROSPECTA_RUNNER_NAME", hostname).strip()
         self.processos = GerenciadorProcessos(self.runner_id)
         self._requisicoes_confirmadas: set[str] = set()
+        self.gateway = GatewayWhatsApp(LOG)
+        self.gateway_ativo = False
 
     def executar(self) -> None:
         os.environ["PROSPECTA_RUNNER_ID"] = self.runner_id
         os.environ["PROSPECTA_RUNNER_ENV"] = self.ambiente
+        self.gateway_ativo = self.gateway.iniciar()
         proximo_heartbeat = 0.0
         try:
             while True:
@@ -48,6 +53,7 @@ class RunnerRemoto:
                         self._registrar("online")
                         proximo_heartbeat = agora + 60
                     self._processar_comandos()
+                    self._processar_comandos_mensagens()
                     self.processos.limpar_finalizados()
                 except bot_repository.ErroPersistencia as erro:
                     LOG.warning("Supabase indisponível; nova tentativa em breve: %s", erro)
@@ -55,6 +61,7 @@ class RunnerRemoto:
         except KeyboardInterrupt:
             LOG.info("Encerramento do executor solicitado.")
         finally:
+            self.gateway.parar()
             try:
                 self._registrar("offline")
             except bot_repository.ErroPersistencia:
@@ -78,11 +85,32 @@ class RunnerRemoto:
                 bot_repository.confirmar_comando(bot_id, requisicao)
                 self._requisicoes_confirmadas.add(requisicao)
 
+    def _processar_comandos_mensagens(self) -> None:
+        if not self.gateway_ativo:
+            return
+        for controle in message_repository.listar_comandos_runner(
+            self.runner_id
+        ):
+            bot_id = str(controle.get("bot_id", ""))
+            requisicao = str(controle.get("request_id", ""))
+            comando = str(controle.get("command", "")).casefold()
+            if not bot_id or not requisicao:
+                continue
+            config = message_repository.carregar_config(bot_id)
+            if not config:
+                continue
+            if comando == "rodando":
+                self.processos.iniciar_mensagens(str(config["slug"]))
+            if requisicao not in self._requisicoes_confirmadas:
+                message_repository.confirmar_comando(bot_id, requisicao)
+                self._requisicoes_confirmadas.add(requisicao)
+
     def _registrar(self, status: str) -> None:
         metadata: dict[str, Any] = {
             "hostname": socket.gethostname(),
             "sistema": platform.system(),
             "versao_python": platform.python_version(),
+            "whatsapp_gateway": self.gateway_ativo,
         }
         bot_repository.registrar_runner(
             self.runner_id,

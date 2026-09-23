@@ -1,0 +1,14 @@
+{
+  "name": "prospecta-whatsapp-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gateway local não oficial para sessões WhatsApp Web",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4",
+    "whatsapp-web.js": "^1.34.1"
+  }
+}
