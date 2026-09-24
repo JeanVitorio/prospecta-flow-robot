@@ -154,7 +154,7 @@ class MensageiroWhatsApp:
             self.log.exception("Falha no motor de mensagens.")
             self._runtime(
                 "failed",
-                last_error=type(erro).__name__,
+                last_error=_mensagem_erro(erro),
                 current_lead_id=None,
             )
             raise
@@ -171,7 +171,11 @@ class MensageiroWhatsApp:
                 self._runtime("running", last_error=None)
                 return
             if estado.get("status") == "error":
-                raise RuntimeError("A sessão do WhatsApp falhou.")
+                detalhe = str(
+                    estado.get("last_error")
+                    or "A sessão do WhatsApp falhou."
+                )
+                raise RuntimeError(detalhe)
             self._runtime_periodico("waiting_qr")
             self._esperar(5)
 
@@ -319,6 +323,12 @@ def _minutos(valor: str) -> int | None:
     if not 0 <= hora <= 23 or not 0 <= minuto <= 59:
         return None
     return hora * 60 + minuto
+
+
+def _mensagem_erro(erro: Exception) -> str:
+    """Preserva o diagnóstico sem gravar uma mensagem excessivamente longa."""
+    mensagem = str(erro).strip() or type(erro).__name__
+    return mensagem[:500]
 
 
 def renderizar_mensagem(modelo: str, lead: dict[str, Any]) -> str:

@@ -51,7 +51,11 @@ function createSession(sessionId) {
   };
   const puppeteer = {
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+    ],
   };
   if (chromePath) puppeteer.executablePath = chromePath;
 
@@ -95,6 +99,7 @@ function createSession(sessionId) {
   client.initialize().catch((error) => {
     state.status = "error";
     state.lastError = String(error?.message || error).slice(0, 500);
+    console.error(`Falha ao iniciar sessão ${sessionId}: ${state.lastError}`);
   });
   sessions.set(sessionId, state);
   return state;
