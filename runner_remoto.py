@@ -96,14 +96,17 @@ class RunnerRemoto:
             comando = str(controle.get("command", "")).casefold()
             if not bot_id or not requisicao:
                 continue
+            if requisicao in self._requisicoes_confirmadas:
+                continue
             config = message_repository.carregar_config(bot_id)
             if not config:
+                message_repository.confirmar_comando(bot_id, requisicao)
+                self._requisicoes_confirmadas.add(requisicao)
                 continue
             if comando == "rodando":
                 self.processos.iniciar_mensagens(str(config["slug"]))
-            if requisicao not in self._requisicoes_confirmadas:
-                message_repository.confirmar_comando(bot_id, requisicao)
-                self._requisicoes_confirmadas.add(requisicao)
+            message_repository.confirmar_comando(bot_id, requisicao)
+            self._requisicoes_confirmadas.add(requisicao)
 
     def _registrar(self, status: str) -> None:
         metadata: dict[str, Any] = {
