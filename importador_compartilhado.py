@@ -327,7 +327,7 @@ class Importador:
             "niche": self.config["nicho"],
             "first_contact_message": self.config["mensagem_inicial"],
             "owner_id": self.owner_id,
-            "notes": row.get("Link Google Maps", "").strip(),
+            "google_maps_url": row.get("Link Google Maps", "").strip() or None,
             "created_at": agora,
             "updated_at": agora,
         }
