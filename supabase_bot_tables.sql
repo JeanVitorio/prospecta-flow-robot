@@ -59,8 +59,7 @@ alter table public.prospecta_bot_configs
 
 alter table public.leads
     add column if not exists first_contact_message text not null
-        default 'Olá, tudo bem com você?',
-    add column if not exists google_maps_url text;
+        default 'Olá, tudo bem com você?';
 
 update public.prospecta_bot_configs
 set initial_message = 'Olá, tudo bem com você?'
@@ -69,18 +68,6 @@ where btrim(coalesce(initial_message, '')) = '';
 update public.leads
 set first_contact_message = 'Olá, tudo bem com você?'
 where btrim(coalesce(first_contact_message, '')) = '';
-
-update public.leads
-set google_maps_url = null
-where google_maps_url is not null
-  and btrim(google_maps_url) = '';
-
-update public.leads
-set google_maps_url = btrim(notes),
-    notes = null
-where nullif(btrim(google_maps_url), '') is null
-  and btrim(coalesce(notes, '')) ~*
-      '^https?://(([^/]+\.)?google\.(com|com\.br)/maps|maps\.app\.goo\.gl/|goo\.gl/maps)';
 
 alter table public.prospecta_bot_configs
     alter column initial_message set default 'Olá, tudo bem com você?',
@@ -127,15 +114,6 @@ begin
         alter table public.leads
             add constraint leads_first_contact_message_not_blank
             check (btrim(first_contact_message) <> '');
-    end if;
-    if not exists (
-        select 1 from pg_catalog.pg_constraint
-        where conname = 'leads_google_maps_url_not_blank'
-          and conrelid = 'public.leads'::regclass
-    ) then
-        alter table public.leads
-            add constraint leads_google_maps_url_not_blank
-            check (google_maps_url is null or btrim(google_maps_url) <> '');
     end if;
 end;
 $$;
