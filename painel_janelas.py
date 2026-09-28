@@ -14,6 +14,8 @@ from painel_processos import caminhos_logs
 class JanelaBot(tk.Toplevel):
     """Formulário único para criação e edição de configurações."""
 
+    MENSAGEM_INICIAL_PADRAO = "Olá, tudo bem com você?"
+
     OPCOES_PRESENCA = {
         "Com ou sem": "any",
         "Somente com": "with",
@@ -130,6 +132,23 @@ class JanelaBot(tk.Toplevel):
             self._textos[chave] = texto
             corpo.rowconfigure(linha, weight=1)
         linha += 1
+        ttk.Label(corpo, text="Mensagem inicial do WhatsApp").grid(
+            row=linha, column=0, sticky="nw", padx=(0, 12), pady=5
+        )
+        self._texto_mensagem_inicial = tk.Text(
+            corpo, height=3, wrap="word", font=("Segoe UI", 10)
+        )
+        self._texto_mensagem_inicial.grid(
+            row=linha, column=1, sticky="nsew", pady=5
+        )
+        self._texto_mensagem_inicial.insert(
+            "1.0",
+            self._config.get(
+                "mensagem_inicial", self.MENSAGEM_INICIAL_PADRAO
+            ),
+        )
+        corpo.rowconfigure(linha, weight=1)
+        linha += 1
         self._mensagem = tk.StringVar()
         ttk.Label(corpo, textvariable=self._mensagem, foreground="#a33").grid(
             row=linha, column=0, columnspan=2, sticky="w", pady=(8, 0)
@@ -184,8 +203,13 @@ class JanelaBot(tk.Toplevel):
             )
             for chave, texto in self._textos.items():
                 dados[chave] = _linhas(texto.get("1.0", "end"))
+            dados["mensagem_inicial"] = self._texto_mensagem_inicial.get(
+                "1.0", "end"
+            ).strip()
             if not dados["cidades"]:
                 raise ValueError("Informe ao menos uma cidade.")
+            if not dados["mensagem_inicial"]:
+                raise ValueError("Informe a mensagem inicial.")
             dados["lead_owner_id"] = str(UUID(dados["lead_owner_id"]))
             for chave in ("id", "slug", "versao", "criado_em"):
                 if chave in self._config:

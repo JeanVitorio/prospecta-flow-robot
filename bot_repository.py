@@ -25,6 +25,7 @@ _COLUNAS_PARA_APP = {
     "name": "nome",
     "search_term": "termo_busca",
     "niche": "nicho",
+    "initial_message": "mensagem_inicial",
     "cities": "cidades",
     "min_reviews": "minimo_avaliacoes",
     "min_reviews_enabled": "filtro_avaliacoes_ativo",

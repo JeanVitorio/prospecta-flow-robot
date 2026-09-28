@@ -10,6 +10,7 @@ create table if not exists public.prospecta_bot_configs (
     owner_email text not null,
     search_term text not null,
     niche text not null,
+    initial_message text not null default 'Olá, tudo bem com você?',
     cities text[] not null default '{}',
     min_reviews integer not null default 0,
     min_reviews_enabled boolean not null default true,
@@ -31,6 +32,9 @@ create table if not exists public.prospecta_bot_configs (
     constraint prospecta_bot_configs_email_not_blank check (btrim(owner_email) <> ''),
     constraint prospecta_bot_configs_search_not_blank check (btrim(search_term) <> ''),
     constraint prospecta_bot_configs_niche_not_blank check (btrim(niche) <> ''),
+    constraint prospecta_bot_configs_initial_message_not_blank check (
+        btrim(initial_message) <> ''
+    ),
     constraint prospecta_bot_configs_min_reviews_valid check (min_reviews >= 0),
     constraint prospecta_bot_configs_website_filter_valid check (
         website_filter in ('any', 'with', 'without')
@@ -49,7 +53,29 @@ alter table public.prospecta_bot_configs
     add column if not exists website_filter text not null default 'without',
     add column if not exists phone_filter text not null default 'any',
     add column if not exists excluded_words_enabled boolean not null default true,
-    add column if not exists included_words_enabled boolean not null default true;
+    add column if not exists included_words_enabled boolean not null default true,
+    add column if not exists initial_message text not null
+        default 'Olá, tudo bem com você?';
+
+alter table public.leads
+    add column if not exists first_contact_message text not null
+        default 'Olá, tudo bem com você?';
+
+update public.prospecta_bot_configs
+set initial_message = 'Olá, tudo bem com você?'
+where btrim(coalesce(initial_message, '')) = '';
+
+update public.leads
+set first_contact_message = 'Olá, tudo bem com você?'
+where btrim(coalesce(first_contact_message, '')) = '';
+
+alter table public.prospecta_bot_configs
+    alter column initial_message set default 'Olá, tudo bem com você?',
+    alter column initial_message set not null;
+
+alter table public.leads
+    alter column first_contact_message set default 'Olá, tudo bem com você?',
+    alter column first_contact_message set not null;
 
 do $$
 begin
@@ -70,6 +96,24 @@ begin
         alter table public.prospecta_bot_configs
             add constraint prospecta_bot_configs_phone_filter_valid
             check (phone_filter in ('any', 'with', 'without'));
+    end if;
+    if not exists (
+        select 1 from pg_catalog.pg_constraint
+        where conname = 'prospecta_bot_configs_initial_message_not_blank'
+          and conrelid = 'public.prospecta_bot_configs'::regclass
+    ) then
+        alter table public.prospecta_bot_configs
+            add constraint prospecta_bot_configs_initial_message_not_blank
+            check (btrim(initial_message) <> '');
+    end if;
+    if not exists (
+        select 1 from pg_catalog.pg_constraint
+        where conname = 'leads_first_contact_message_not_blank'
+          and conrelid = 'public.leads'::regclass
+    ) then
+        alter table public.leads
+            add constraint leads_first_contact_message_not_blank
+            check (btrim(first_contact_message) <> '');
     end if;
 end;
 $$;

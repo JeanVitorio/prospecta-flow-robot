@@ -32,6 +32,7 @@ _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _COMANDO = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 _FILTROS_PRESENCA = {"any", "with", "without"}
+_MENSAGEM_INICIAL_PADRAO = "Olá, tudo bem com você?"
 
 
 def pasta_bot(slug: str):
@@ -226,6 +227,12 @@ def validar_config(config: dict[str, Any]) -> dict[str, Any]:
     dados["owner_email"] = email.casefold()
     dados["termo_busca"] = _texto(dados.get("termo_busca"), "Termo de busca", 1, 200)
     dados["nicho"] = _texto(dados.get("nicho"), "Nicho", 1, 120)
+    dados["mensagem_inicial"] = _texto(
+        dados.get("mensagem_inicial", _MENSAGEM_INICIAL_PADRAO),
+        "Mensagem inicial",
+        1,
+        1000,
+    )
     dados["cidades"] = _lista(dados.get("cidades"), "Cidades", obrigatoria=True)
     dados["palavras_excluidas"] = _lista(
         dados.get("palavras_excluidas", []), "Palavras excluídas"

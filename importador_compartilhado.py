@@ -325,6 +325,7 @@ class Importador:
             "source": self.config["nicho"],
             "estimated_value": self.config["ticket_estimado"],
             "niche": self.config["nicho"],
+            "first_contact_message": self.config["mensagem_inicial"],
             "owner_id": self.owner_id,
             "notes": row.get("Link Google Maps", "").strip(),
             "created_at": agora,
