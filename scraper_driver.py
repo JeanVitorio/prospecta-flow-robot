@@ -19,6 +19,7 @@ from selenium.common.exceptions import (
     WebDriverException,
 )
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -65,10 +66,12 @@ class NavegadorMaps:
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         ultimo_erro: Exception | None = None
+        driver_bin = os.getenv("CHROMEDRIVER_BIN", "").strip()
+        service = Service(executable_path=driver_bin) if driver_bin else Service()
         for tentativa in range(1, 4):
             self.controle.verificar()
             try:
-                self.driver = webdriver.Chrome(options=options)
+                self.driver = webdriver.Chrome(service=service, options=options)
                 self.driver.set_page_load_timeout(45)
                 self.driver.execute_cdp_cmd(
                     "Page.addScriptToEvaluateOnNewDocument",

@@ -10,3 +10,7 @@ web/
 dados_mensagens/
 dados_whatsapp/
 whatsapp_gateway/node_modules/
+build/
+dist/
+release/
+packaging/cache/

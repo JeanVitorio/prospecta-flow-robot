@@ -10,6 +10,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from app_paths import data_path, install_root, is_frozen, resource_path
 import bot_config
 
 
@@ -19,7 +20,7 @@ class GerenciadorProcessos:
     def __init__(self, runner_id: str | None = None) -> None:
         self._processos: dict[str, dict[str, subprocess.Popen[Any]]] = {}
         self._lock = threading.RLock()
-        self._diretorio = Path(__file__).resolve().parent
+        self._diretorio = install_root()
         self._runner_id = runner_id
 
     def iniciar(self, slug: str, registrar_comando: bool = True) -> None:
@@ -89,7 +90,7 @@ class GerenciadorProcessos:
 
     def _abrir(self, slug: str, processo: str) -> subprocess.Popen[Any]:
         pasta = (
-            Path(__file__).resolve().parent / "dados_mensagens" / slug
+            data_path("dados_mensagens", slug)
             if processo == "mensagens"
             else bot_config.pasta_bot(slug)
         )
@@ -105,9 +106,19 @@ class GerenciadorProcessos:
         if self._runner_id:
             ambiente["PROSPECTA_RUNNER_ID"] = self._runner_id
             ambiente["PROSPECTA_PRESERVAR_COMANDO"] = "1"
+        comando = (
+            [sys.executable, "--worker", processo, slug]
+            if is_frozen()
+            else [
+                sys.executable,
+                str(resource_path("bot_dinamico.py")),
+                processo,
+                slug,
+            ]
+        )
         try:
             return subprocess.Popen(
-                [sys.executable, "bot_dinamico.py", processo, slug],
+                comando,
                 cwd=self._diretorio,
                 stdin=subprocess.DEVNULL,
                 stdout=log,

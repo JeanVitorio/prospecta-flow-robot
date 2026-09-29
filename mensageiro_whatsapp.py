@@ -8,12 +8,12 @@ import os
 import random
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+from app_paths import data_path
 import bot_repository
 import message_repository as repositorio
 from execucao_bot import criar_logger
@@ -90,7 +90,7 @@ class MensageiroWhatsApp:
         self.runner_id = os.getenv("PROSPECTA_RUNNER_ID", "").strip()
         if not self.runner_id:
             raise RuntimeError("Executor remoto não identificado.")
-        pasta = Path(__file__).resolve().parent / "dados_mensagens" / slug
+        pasta = data_path("dados_mensagens", slug)
         self.log = criar_logger(f"mensageiro_{slug}", pasta / "mensageiro.log")
         self.gateway = ClienteGateway()
         self.fuso = ZoneInfo("America/Sao_Paulo")

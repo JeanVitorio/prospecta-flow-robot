@@ -11,8 +11,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from app_paths import data_path
 
-_BASE = Path(__file__).resolve().parent / "dados_bots"
+
+_BASE = data_path("dados_bots")
 _INDICE = _BASE / "index.json"
 _LOCK = threading.RLock()
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

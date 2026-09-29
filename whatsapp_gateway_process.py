@@ -13,14 +13,15 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from app_paths import data_path, resource_path
+
 
 class GatewayWhatsApp:
     """Mantém um único processo Node disponível para todos os bots."""
 
     def __init__(self, logger: logging.Logger) -> None:
         self.log = logger
-        self.base = Path(__file__).resolve().parent
-        self.pasta = self.base / "whatsapp_gateway"
+        self.pasta = resource_path("whatsapp_gateway")
         self.processo: subprocess.Popen[str] | None = None
         self.arquivo_log = None
         self.porta = int(os.getenv("WHATSAPP_GATEWAY_PORT", "32145"))
@@ -28,7 +29,12 @@ class GatewayWhatsApp:
         self.url = f"http://127.0.0.1:{self.porta}"
 
     def iniciar(self) -> bool:
-        node = shutil.which("node")
+        configured_node = os.getenv("PROSPECTA_NODE_BIN", "").strip()
+        node = (
+            configured_node
+            if configured_node and Path(configured_node).is_file()
+            else shutil.which("node")
+        )
         if not node:
             self.log.error(
                 "Node.js não encontrado; bots de WhatsApp permanecerão indisponíveis."
@@ -45,11 +51,11 @@ class GatewayWhatsApp:
         ambiente.update(
             WHATSAPP_GATEWAY_PORT=str(self.porta),
             WHATSAPP_GATEWAY_TOKEN=self.token,
-            WHATSAPP_SESSION_PATH=str(self.base / "dados_whatsapp"),
+            WHATSAPP_SESSION_PATH=str(data_path("dados_whatsapp")),
         )
         os.environ["WHATSAPP_GATEWAY_URL"] = self.url
         os.environ["WHATSAPP_GATEWAY_TOKEN"] = self.token
-        self.arquivo_log = (self.base / "whatsapp_gateway.log").open(
+        self.arquivo_log = data_path("logs", "whatsapp_gateway.log").open(
             "a", encoding="utf-8", buffering=1
         )
         self.processo = subprocess.Popen(

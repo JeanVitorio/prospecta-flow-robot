@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from collections.abc import Sequence
 
 import bot_config
 from importador_compartilhado import executar_importador
@@ -11,13 +12,13 @@ from mensageiro_whatsapp import executar_mensageiro
 from scraper_maps import executar_scraper
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Executa um motor dinâmico pela configuração do bot."
     )
     parser.add_argument("processo", choices=("scraper", "importador", "mensagens"))
     parser.add_argument("slug", help="Slug da configuração remota.")
-    argumentos = parser.parse_args()
+    argumentos = parser.parse_args(argv)
 
     # O runner remoto preserva o destino registrado no comando.
     if (

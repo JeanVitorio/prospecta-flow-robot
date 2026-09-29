@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 import threading
-from pathlib import Path
 from typing import Any
 
+from app_paths import env_path
 from dotenv import load_dotenv
 
 
@@ -52,7 +52,7 @@ def obter_cliente() -> Any:
     with _cliente_lock:
         if _cliente is not None:
             return _cliente
-        load_dotenv(Path(__file__).with_name(".env"), override=False)
+        load_dotenv(env_path(), override=False)
         url = os.getenv("SUPABASE_URL", "").strip()
         chave = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
         if not url or not chave:

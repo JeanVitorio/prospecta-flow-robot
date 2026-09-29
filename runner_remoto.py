@@ -12,6 +12,7 @@ from typing import Any
 import bot_config
 import bot_repository
 import message_repository
+from atualizador import Atualizador
 from painel_processos import GerenciadorProcessos
 from whatsapp_gateway_process import GatewayWhatsApp
 
@@ -39,6 +40,8 @@ class RunnerRemoto:
         self._requisicoes_confirmadas: set[str] = set()
         self.gateway = GatewayWhatsApp(LOG)
         self.gateway_ativo = False
+        self.atualizador = Atualizador(LOG)
+        self._instalador_pendente = None
 
     def executar(self) -> None:
         os.environ["PROSPECTA_RUNNER_ID"] = self.runner_id
@@ -55,6 +58,19 @@ class RunnerRemoto:
                     self._processar_comandos()
                     self._processar_comandos_mensagens()
                     self.processos.limpar_finalizados()
+                    self._instalador_pendente = (
+                        self._instalador_pendente
+                        or self.atualizador.check_if_due()
+                    )
+                    if (
+                        self._instalador_pendente
+                        and not self.processos.possui_ativos()
+                        and self.atualizador.schedule_install(
+                            self._instalador_pendente
+                        )
+                    ):
+                        LOG.info("Atualização agendada; encerrando versão atual.")
+                        return
                 except bot_repository.ErroPersistencia as erro:
                     LOG.warning("Supabase indisponível; nova tentativa em breve: %s", erro)
                 time.sleep(10)
