@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.0.1"
 #endif
 
 #define MyAppName "Prospecta Flow"
@@ -24,6 +24,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupIconFile=ProspectaFlow.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; Flags: unchecked

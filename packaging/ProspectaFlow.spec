@@ -52,6 +52,7 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
+    icon=str(ROOT / "packaging" / "ProspectaFlow.ico"),
 )
 
 coll = COLLECT(
