@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.3",
+    [string]$Version = "1.0.4",
     [switch]$SkipAppBuild,
     [switch]$SkipChrome,
     [switch]$SkipPortable,
@@ -121,7 +121,18 @@ Set-Content `
 if (-not $SkipPortable) {
     $PortableZip = Join-Path $ReleaseRoot "ProspectaFlow-$Version-portable.zip"
     Remove-Item $PortableZip -ErrorAction SilentlyContinue
-    Compress-Archive -Path (Join-Path $AppDist "*") -DestinationPath $PortableZip
+    $Tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+    if ($Tar) {
+        Push-Location $AppDist
+        try {
+            & $Tar.Source -a -c -f $PortableZip *
+            Assert-LastExitCode "Geração do pacote portátil"
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Compress-Archive -Path (Join-Path $AppDist "*") -DestinationPath $PortableZip
+    }
 }
 
 if (-not $SkipInstaller) {

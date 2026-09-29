@@ -58,6 +58,12 @@ class GatewayWhatsApp:
         self.arquivo_log = data_path("logs", "whatsapp_gateway.log").open(
             "a", encoding="utf-8", buffering=1
         )
+        # No Windows, mantém o gateway em segundo plano sem abrir um console.
+        creation_flags = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            if os.name == "nt"
+            else 0
+        )
         self.processo = subprocess.Popen(
             [node, "server.js"],
             cwd=self.pasta,
@@ -66,6 +72,7 @@ class GatewayWhatsApp:
             stdout=self.arquivo_log,
             stderr=subprocess.STDOUT,
             text=True,
+            creationflags=creation_flags,
         )
         for _ in range(40):
             if self.processo.poll() is not None:
