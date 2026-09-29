@@ -132,6 +132,10 @@ class Importador:
         self.estado.setdefault("leads_lidos", 0)
         self.estado.setdefault("leads_importados", 0)
         self.estado.setdefault("falhas_importacao", 0)
+        if "falhas_pendentes" not in self.estado:
+            self.estado["falhas_pendentes"] = int(
+                self.estado["falhas_importacao"]
+            )
         self.estado.setdefault("ultimo_erro", "")
         self.estado.setdefault("lote_csv_processado", 0)
 
@@ -149,12 +153,28 @@ class Importador:
                 lote_processado = int(
                     self.estado.get("lote_csv_processado") or 0
                 )
-                if mtime is not None and lote_disponivel > lote_processado:
+                falhas_pendentes = int(
+                    self.estado.get("falhas_pendentes") or 0
+                )
+                if mtime is not None and (
+                    lote_disponivel > lote_processado or falhas_pendentes > 0
+                ):
                     self.estado["atividade_atual"] = "Processando novos leads"
                     inseridos, falhas = self._processar_csv()
                     self.estado["ultima_execucao"] = agora_iso()
                     self.estado["mtime_csv"] = mtime
-                    self.estado["lote_csv_processado"] = lote_disponivel
+                    self.estado["falhas_pendentes"] = falhas
+                    if falhas == 0:
+                        self.estado["lote_csv_processado"] = lote_disponivel
+                    else:
+                        self.estado["atividade_atual"] = (
+                            "Falha ao importar leads; nova tentativa agendada"
+                        )
+                        self.log.warning(
+                            "Lote %s mantido como pendente após %s falha(s).",
+                            lote_disponivel,
+                            falhas,
+                        )
                     self.checkpoint.salvar("running")
                     if inseridos:
                         self.log.info(
@@ -227,8 +247,9 @@ class Importador:
                     ultimo_erro=type(erro).__name__,
                 )
                 self.log.error(
-                    "Falha de persistência ao inserir lote de %s lead(s).",
+                    "Falha de persistência ao inserir lote de %s lead(s): %s.",
                     len(lote),
+                    type(erro).__name__,
                 )
 
         self.estado["ultima_execucao"] = agora_iso()
