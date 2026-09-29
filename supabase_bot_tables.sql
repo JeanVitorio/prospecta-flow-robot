@@ -59,7 +59,8 @@ alter table public.prospecta_bot_configs
 
 alter table public.leads
     add column if not exists first_contact_message text not null
-        default 'Olá, tudo bem com você?';
+        default 'Olá, tudo bem com você?',
+    add column if not exists city text;
 
 update public.prospecta_bot_configs
 set initial_message = 'Olá, tudo bem com você?'
@@ -68,6 +69,11 @@ where btrim(coalesce(initial_message, '')) = '';
 update public.leads
 set first_contact_message = 'Olá, tudo bem com você?'
 where btrim(coalesce(first_contact_message, '')) = '';
+
+update public.leads
+set city = null
+where city is not null
+  and btrim(city) = '';
 
 alter table public.prospecta_bot_configs
     alter column initial_message set default 'Olá, tudo bem com você?',
@@ -114,6 +120,15 @@ begin
         alter table public.leads
             add constraint leads_first_contact_message_not_blank
             check (btrim(first_contact_message) <> '');
+    end if;
+    if not exists (
+        select 1 from pg_catalog.pg_constraint
+        where conname = 'leads_city_not_blank'
+          and conrelid = 'public.leads'::regclass
+    ) then
+        alter table public.leads
+            add constraint leads_city_not_blank
+            check (city is null or btrim(city) <> '');
     end if;
 end;
 $$;

@@ -322,6 +322,7 @@ class Importador:
             "name": row["Nome"].strip(),
             "company": row["Nome"].strip(),
             "phone": row.get("Telefone", "").strip(),
+            "city": row.get("Cidade", "").strip() or None,
             "source": self.config["nicho"],
             "estimated_value": self.config["ticket_estimado"],
             "niche": self.config["nicho"],
