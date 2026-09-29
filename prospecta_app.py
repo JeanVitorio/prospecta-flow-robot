@@ -40,9 +40,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.configure:
         return 0 if configurar_interativo() else 1
     if args.worker:
+        from bot_repository import ConflitoVersao
         from bot_dinamico import main as worker_main
 
-        worker_main(args.worker)
+        try:
+            worker_main(args.worker)
+        except ConflitoVersao:
+            logging.getLogger("prospecta_app").info(
+                "Worker não iniciado porque o checkpoint está reservado "
+                "por outro executor."
+            )
         return 0
 
     if not configuracao_disponivel() and not configurar_interativo():
