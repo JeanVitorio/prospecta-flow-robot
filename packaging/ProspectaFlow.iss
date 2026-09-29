@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.1"
+  #define MyAppVersion "1.0.2"
 #endif
 
 #define MyAppName "Prospecta Flow"
@@ -11,9 +11,12 @@ AppId={{7A8713D7-A5D7-4E2A-80CF-6DA03156B40C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL=https://jvs-prospecta-flow.netlify.app/
+AppSupportURL=https://jvs-prospecta-flow.netlify.app/
 DefaultDirName={localappdata}\Programs\ProspectaFlow
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+DisableWelcomePage=no
 PrivilegesRequired=lowest
 OutputBaseFilename=ProspectaFlowSetup
 Compression=lzma2/ultra64
@@ -25,6 +28,11 @@ CloseApplications=yes
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=ProspectaFlow.ico
+WizardImageFile=installer-sidebar.bmp
+WizardSmallImageFile=installer-small.bmp
+
+[Languages]
+Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na Área de Trabalho"; Flags: unchecked

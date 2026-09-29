@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import platform
 import socket
@@ -17,6 +18,8 @@ from painel_processos import GerenciadorProcessos
 from whatsapp_gateway_process import GatewayWhatsApp
 
 LOG = logging.getLogger("prospecta_runner")
+MUTEX_NAME = r"Local\ProspectaFlow.Runner"
+ERROR_ALREADY_EXISTS = 183
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -140,8 +143,33 @@ class RunnerRemoto:
         )
 
 
+def _adquirir_instancia_unica() -> int | None:
+    """Mantém somente um Runner ativo na sessão atual do Windows."""
+    if os.name != "nt":
+        return 1
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = (ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.CreateMutexW(None, False, MUTEX_NAME)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(handle)
+        return None
+    return int(handle)
+
+
 def main() -> None:
-    RunnerRemoto().executar()
+    handle = _adquirir_instancia_unica()
+    if handle is None:
+        LOG.info("O Runner já está ativo nesta sessão.")
+        return
+    try:
+        RunnerRemoto().executar()
+    finally:
+        if os.name == "nt":
+            ctypes.windll.kernel32.CloseHandle(handle)
 
 
 if __name__ == "__main__":

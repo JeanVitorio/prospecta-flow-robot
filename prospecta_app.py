@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv(env_path(), override=True)
 
     if args.panel:
-        from painel import main as panel_main
+        from painel_web import main as panel_main
 
         panel_main()
         return 0
