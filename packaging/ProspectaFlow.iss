@@ -18,6 +18,8 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 PrivilegesRequired=lowest
+; Evita bloqueio corporativo na chave HKCU\...\Uninstall.
+CreateUninstallRegKey=no
 OutputBaseFilename=ProspectaFlowSetup
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -45,6 +47,7 @@ Source: "..\dist\ProspectaFlow\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Name: "{group}\Configurar Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"
 Name: "{group}\Painel Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
 Name: "{group}\Servidor Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"
+Name: "{group}\Desinstalar Prospecta Flow"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Tasks: desktopicon
 Name: "{userstartup}\Prospecta Flow Server"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"; Tasks: autostart
 
