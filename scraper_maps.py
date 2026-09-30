@@ -30,7 +30,7 @@ CAMPOS_CSV = (
     "Avaliações",
     "Link Google Maps",
 )
-VERSAO_FILTRO_LEADS = 2
+VERSAO_FILTRO_LEADS = 3
 
 
 class ScraperMaps:

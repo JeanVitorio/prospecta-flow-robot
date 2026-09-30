@@ -81,10 +81,8 @@ class ExtratorMaps:
         if (
             self.config.get("filtro_avaliacoes_ativo", True)
             and minimo_avaliacoes > 0
-            and (
-                avaliacoes is None
-                or avaliacoes < minimo_avaliacoes
-            )
+            and avaliacoes is not None
+            and avaliacoes < minimo_avaliacoes
         ):
             return None
         return {
