@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.6"
+  #define MyAppVersion "1.0.7"
 #endif
 
 #define MyAppName "Prospecta Flow"
@@ -27,6 +27,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
+CloseApplicationsFilter=ProspectaFlow.exe
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=ProspectaFlow.ico
@@ -42,6 +43,11 @@ Name: "autostart"; Description: "Iniciar o servidor com o Windows"; Flags: check
 
 [Files]
 Source: "..\dist\ProspectaFlow\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\runtime"
+Type: filesandordirs; Name: "{app}\whatsapp_gateway"
 
 [Icons]
 Name: "{group}\Configurar Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"

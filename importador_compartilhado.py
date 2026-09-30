@@ -156,8 +156,11 @@ class Importador:
                 falhas_pendentes = int(
                     self.estado.get("falhas_pendentes") or 0
                 )
+                csv_alterado = mtime != self.estado.get("mtime_csv")
                 if mtime is not None and (
-                    lote_disponivel > lote_processado or falhas_pendentes > 0
+                    lote_disponivel > lote_processado
+                    or csv_alterado
+                    or falhas_pendentes > 0
                 ):
                     self.estado["atividade_atual"] = "Processando novos leads"
                     inseridos, falhas = self._processar_csv()

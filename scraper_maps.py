@@ -30,6 +30,7 @@ CAMPOS_CSV = (
     "Avaliações",
     "Link Google Maps",
 )
+VERSAO_FILTRO_LEADS = 2
 
 
 class ScraperMaps:
@@ -168,6 +169,35 @@ class ScraperMaps:
         }
         for chave, valor in padrao.items():
             self.estado.setdefault(chave, valor)
+        versao_filtro = int(self.estado.get("versao_filtro_leads") or 1)
+        if (
+            versao_filtro < VERSAO_FILTRO_LEADS
+            and int(self.estado.get("empresas_verificadas") or 0) > 0
+            and int(self.estado.get("leads_incluidos") or 0) == 0
+            and not self.urls_existentes
+        ):
+            self.log.warning(
+                "Checkpoint anterior descartou todas as empresas; "
+                "reiniciando a prospecção com o filtro corrigido."
+            )
+            self.estado.update(
+                cidade_atual="",
+                ultima_cidade="",
+                indice_cidade=0,
+                ultima_cidade_concluida="",
+                cidades_concluidas=[],
+                cidades_com_falha=[],
+                empresas_coletadas=0,
+                empresas_verificadas=0,
+                empresas_descartadas=0,
+                empresas_com_falha=0,
+                itens=[],
+                proximo_item=0,
+                lote_csv_versao=0,
+                concluido=False,
+                ultimo_erro="",
+            )
+        self.estado["versao_filtro_leads"] = VERSAO_FILTRO_LEADS
 
     def _processar_cidades(self) -> None:
         novo_csv = (

@@ -68,9 +68,12 @@ class Atualizador:
         if not is_frozen() or os.name != "nt" or not installer.is_file():
             return False
         app = Path(sys.executable).resolve()
+        current_pid = os.getpid()
         quoted_installer = _powershell_quote(str(installer))
         quoted_app = _powershell_quote(str(app))
         script = (
+            f"Wait-Process -Id {current_pid} -Timeout 60 "
+            "-ErrorAction SilentlyContinue; "
             f"$p = Start-Process -FilePath {quoted_installer} "
             "-ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' "
             "-PassThru -Wait; "
