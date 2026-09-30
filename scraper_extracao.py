@@ -77,9 +77,14 @@ class ExtratorMaps:
             self.config.get("filtro_telefone", "any"),
         ):
             return None
-        if self.config.get("filtro_avaliacoes_ativo", True) and (
-            avaliacoes is None
-            or avaliacoes < self.config["minimo_avaliacoes"]
+        minimo_avaliacoes = self.config["minimo_avaliacoes"]
+        if (
+            self.config.get("filtro_avaliacoes_ativo", True)
+            and minimo_avaliacoes > 0
+            and (
+                avaliacoes is None
+                or avaliacoes < minimo_avaliacoes
+            )
         ):
             return None
         return {
@@ -152,11 +157,18 @@ class ExtratorMaps:
     @classmethod
     def _extrair_avaliacoes(cls, driver: Any) -> int | None:
         seletores = (
+            "button[jsaction*='reviewChart']",
+            "button[jsaction*='moreReviews']",
+            "span.F7nice",
             "span.F7nice span[aria-label]",
             "span[aria-label*='avaliações']",
+            "span[aria-label*='avaliação']",
             "span[aria-label*='reviews']",
+            "span[aria-label*='review']",
             "button[aria-label*='avaliações']",
+            "button[aria-label*='avaliação']",
             "button[aria-label*='reviews']",
+            "button[aria-label*='review']",
         )
         for seletor in seletores:
             for elemento in driver.find_elements(By.CSS_SELECTOR, seletor):
@@ -169,7 +181,15 @@ class ExtratorMaps:
 
     @staticmethod
     def _numero_avaliacoes(texto: str | None) -> int | None:
-        correspondencia = re.search(r"([\d][\d.,]*)", texto or "")
+        texto = texto or ""
+        correspondencia = re.search(
+            r"([\d][\d.,\s]*)\s+"
+            r"(?:avaliaç(?:ão|ões)|comentários?|reviews?)\b",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        if not correspondencia:
+            correspondencia = re.search(r"\(([\d][\d.,\s]*)\)", texto)
         if not correspondencia:
             return None
         digitos = re.sub(r"\D", "", correspondencia.group(1))
