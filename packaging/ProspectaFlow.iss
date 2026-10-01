@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.9"
+  #define MyAppVersion "1.0.10"
 #endif
 
 #define MyAppName "Prospecta Flow"
@@ -18,8 +18,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 PrivilegesRequired=lowest
-; Evita bloqueio corporativo na chave HKCU\...\Uninstall.
-CreateUninstallRegKey=no
+CreateUninstallRegKey=yes
 OutputBaseFilename=ProspectaFlowSetup
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -27,7 +26,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
-CloseApplicationsFilter=ProspectaFlow.exe
+CloseApplicationsFilter=ProspectaFlow.exe,node.exe,chrome.exe,chromedriver.exe
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=ProspectaFlow.ico
@@ -43,11 +42,19 @@ Name: "autostart"; Description: "Iniciar o servidor com o Windows"; Flags: check
 
 [Files]
 Source: "..\dist\ProspectaFlow\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "stop-app-processes.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\whatsapp_gateway"
+
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\stop-app-processes.ps1"" -InstallPath ""{app}"""; Flags: runhidden waituntilterminated
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{localappdata}\ProspectaFlow"
+Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name: "{group}\Configurar Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"

@@ -6,7 +6,11 @@ import logging
 import os
 import subprocess
 import sys
+import threading
+from typing import Any
 
+from app_version import __version__
+from atualizador import Atualizador
 from app_paths import data_path, install_root, is_frozen, resource_path
 from execucao_bot import bloquear_energia, liberar_energia
 
@@ -16,6 +20,50 @@ WEB_APP_URL = os.getenv(
     "https://jvs-prospecta-flow.netlify.app/",
 ).strip()
 LOG = logging.getLogger("prospecta_painel_web")
+
+
+class ApiAtualizacao:
+    """Expõe à interface web somente a atualização nativa validada."""
+
+    def __init__(self) -> None:
+        self.atualizador = Atualizador(LOG)
+        self.janela: Any | None = None
+
+    def vincular_janela(self, janela: Any) -> None:
+        self.janela = janela
+
+    def obter_versao_instalada(self) -> dict[str, str]:
+        return {"version": __version__}
+
+    def buscar_e_instalar_atualizacao(self) -> dict[str, str]:
+        try:
+            resultado = self.atualizador.check_now()
+            if not resultado:
+                return {
+                    "status": "updated",
+                    "version": __version__,
+                    "message": "O aplicativo já está na versão mais recente.",
+                }
+            info, installer = resultado
+            if not self.atualizador.schedule_install(installer):
+                raise RuntimeError("Não foi possível agendar a instalação.")
+            if self.janela is not None:
+                threading.Timer(1.0, self.janela.destroy).start()
+            return {
+                "status": "installing",
+                "version": info.version,
+                "message": (
+                    "Atualização validada. O aplicativo será fechado e "
+                    "reiniciado automaticamente."
+                ),
+            }
+        except Exception as erro:
+            LOG.warning("Atualização manual não concluída: %s", erro)
+            return {
+                "status": "error",
+                "version": __version__,
+                "message": "Não foi possível buscar ou instalar a atualização.",
+            }
 
 
 def _garantir_runner() -> None:
@@ -53,13 +101,16 @@ def main() -> None:
     try:
         import webview
 
-        webview.create_window(
+        api = ApiAtualizacao()
+        janela = webview.create_window(
             "Prospecta Flow",
             WEB_APP_URL,
             width=1440,
             height=900,
             min_size=(1024, 640),
+            js_api=api,
         )
+        api.vincular_janela(janela)
         webview.start(
             gui="edgechromium",
             private_mode=False,

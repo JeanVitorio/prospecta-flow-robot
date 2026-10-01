@@ -51,17 +51,24 @@ class Atualizador:
         if not is_frozen() and os.getenv("PROSPECTA_TEST_UPDATES") != "1":
             return None
         try:
-            info = self._fetch_metadata()
-            if _version_tuple(info.version) <= _version_tuple(__version__):
-                return None
-            installer = self._download(info)
-            self.log.info(
-                "Atualização %s validada e pronta para instalação.", info.version
-            )
-            return installer
+            resultado = self.check_now()
+            return resultado[1] if resultado else None
         except Exception as error:
             self.log.warning("Não foi possível verificar atualizações: %s", error)
             return None
+
+    def check_now(self) -> tuple[UpdateInfo, Path] | None:
+        """Consulta imediatamente e baixa uma versão nova com hash validado."""
+        if not is_frozen() and os.getenv("PROSPECTA_TEST_UPDATES") != "1":
+            raise RuntimeError("Atualização disponível somente no aplicativo instalado.")
+        info = self._fetch_metadata()
+        if _version_tuple(info.version) <= _version_tuple(__version__):
+            return None
+        installer = self._download(info)
+        self.log.info(
+            "Atualização %s validada e pronta para instalação.", info.version
+        )
+        return info, installer
 
     def schedule_install(self, installer: Path) -> bool:
         """Agenda instalação após o runner encerrar e reinicia a versão nova."""
