@@ -26,18 +26,20 @@ class ApiAtualizacao:
     """Expõe à interface web somente a atualização nativa validada."""
 
     def __init__(self) -> None:
-        self.atualizador = Atualizador(LOG)
-        self.janela: Any | None = None
+        # O pywebview percorre atributos públicos da API recursivamente.
+        # Objetos internos precisam permanecer privados para evitar ciclos.
+        self._atualizador = Atualizador(LOG)
+        self._janela: Any | None = None
 
-    def vincular_janela(self, janela: Any) -> None:
-        self.janela = janela
+    def _vincular_janela(self, janela: Any) -> None:
+        self._janela = janela
 
     def obter_versao_instalada(self) -> dict[str, str]:
         return {"version": __version__}
 
     def buscar_e_instalar_atualizacao(self) -> dict[str, str]:
         try:
-            resultado = self.atualizador.check_now()
+            resultado = self._atualizador.check_now()
             if not resultado:
                 return {
                     "status": "updated",
@@ -45,10 +47,10 @@ class ApiAtualizacao:
                     "message": "O aplicativo já está na versão mais recente.",
                 }
             info, installer = resultado
-            if not self.atualizador.schedule_install(installer):
+            if not self._atualizador.schedule_install(installer):
                 raise RuntimeError("Não foi possível agendar a instalação.")
-            if self.janela is not None:
-                threading.Timer(1.0, self.janela.destroy).start()
+            if self._janela is not None:
+                threading.Timer(1.0, self._janela.destroy).start()
             return {
                 "status": "installing",
                 "version": info.version,
@@ -110,7 +112,7 @@ def main() -> None:
             min_size=(1024, 640),
             js_api=api,
         )
-        api.vincular_janela(janela)
+        api._vincular_janela(janela)
         webview.start(
             gui="edgechromium",
             private_mode=False,
