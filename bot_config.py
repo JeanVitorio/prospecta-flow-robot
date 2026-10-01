@@ -257,9 +257,16 @@ def validar_config(config: dict[str, Any]) -> dict[str, Any]:
         dados.get("filtro_palavras_incluidas_ativo", True),
         "Filtro de palavras incluídas",
     )
-    sobrepostas = set(dados["palavras_excluidas"]) & set(dados["palavras_incluidas"])
-    if sobrepostas:
-        raise ErroValidacao("Uma palavra não pode estar nos dois filtros.")
+    # Em configurações legadas contraditórias, a inclusão explícita prevalece
+    # para que o worker não encerre antes de iniciar o scraper.
+    incluidas_normalizadas = {
+        item.casefold() for item in dados["palavras_incluidas"]
+    }
+    dados["palavras_excluidas"] = [
+        item
+        for item in dados["palavras_excluidas"]
+        if item.casefold() not in incluidas_normalizadas
+    ]
     dados["minimo_avaliacoes"] = _inteiro(
         dados.get("minimo_avaliacoes", 0), "Mínimo de avaliações", 0
     )
