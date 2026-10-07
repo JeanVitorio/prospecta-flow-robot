@@ -15,10 +15,7 @@ from app_paths import data_path, install_root, is_frozen, resource_path
 from execucao_bot import bloquear_energia, liberar_energia
 
 
-WEB_APP_URL = os.getenv(
-    "PROSPECTA_WEB_URL",
-    "https://jvs-prospecta-flow.netlify.app/",
-).strip()
+WEB_APP_URL = os.getenv("PROSPECTA_WEB_URL", "").strip()
 LOG = logging.getLogger("prospecta_painel_web")
 
 
@@ -96,7 +93,9 @@ def _garantir_runner() -> None:
 
 def main() -> None:
     if not WEB_APP_URL.startswith("https://"):
-        raise RuntimeError("PROSPECTA_WEB_URL deve usar HTTPS.")
+        raise RuntimeError(
+            "Configure PROSPECTA_WEB_URL com o link HTTPS da Web deste cliente."
+        )
 
     _garantir_runner()
     bloquear_energia()

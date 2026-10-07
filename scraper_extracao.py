@@ -6,9 +6,13 @@ import logging
 import re
 import unicodedata
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    StaleElementReferenceException,
+    WebDriverException,
+)
 from selenium.webdriver.common.by import By
 
 from scraper_driver import NavegadorMaps
@@ -58,18 +62,20 @@ class ExtratorMaps:
         if not self._aceitar_filtros(nome, categoria):
             return None
         avaliacoes = self._extrair_avaliacoes(driver)
-        possui_site = self._possui_site(driver)
+        site = self._extrair_site(driver)
         telefone = self._extrair_telefone(driver)
+        instagram = self._extrair_instagram(driver)
         self.log.info(
-            "%s | categoria: %s | avaliações: %s | %s | %s",
+            "%s | categoria: %s | avaliações: %s | %s | %s | %s",
             nome,
             categoria or "não identificada",
             avaliacoes if avaliacoes is not None else "não identificadas",
-            "tem site" if possui_site else "sem site",
+            "tem site" if site else "sem site",
             "tem telefone" if telefone != "não encontrado" else "sem telefone",
+            "tem Instagram" if instagram else "sem Instagram",
         )
         if not self._aceitar_presenca(
-            possui_site, self.config.get("filtro_site", "without")
+            bool(site), self.config.get("filtro_site", "without")
         ):
             return None
         if not self._aceitar_presenca(
@@ -90,6 +96,8 @@ class ExtratorMaps:
             "Cidade": cidade,
             "Telefone": telefone,
             "Avaliações": avaliacoes,
+            "Site": site,
+            "Instagram": instagram,
             "Link Google Maps": driver.current_url,
         }
 
@@ -196,16 +204,94 @@ class ExtratorMaps:
         except ValueError:
             return None
 
-    @staticmethod
-    def _possui_site(driver: Any) -> bool:
-        return any(
-            driver.find_elements(By.CSS_SELECTOR, seletor)
+    def _extrair_site(self, driver: Any) -> str:
+        try:
             for seletor in (
                 "a[data-item-id='authority']",
                 "a[aria-label^='Site:']",
                 "a[aria-label^='Website:']",
+            ):
+                for elemento in driver.find_elements(By.CSS_SELECTOR, seletor):
+                    url = (elemento.get_attribute("href") or "").strip()
+                    if url:
+                        return url
+        except (StaleElementReferenceException, WebDriverException) as erro:
+            self.log.warning(
+                "Site não pôde ser lido; a empresa continuará: %s",
+                type(erro).__name__,
             )
-        )
+        return ""
+
+    def _extrair_instagram(self, driver: Any) -> str:
+        """Rola o painel da empresa e retorna o primeiro Instagram exibido."""
+        for tentativa in range(4):
+            self.navegador.controle.verificar()
+            instagram = self._primeiro_instagram(driver)
+            if instagram:
+                return instagram
+            if tentativa == 3:
+                break
+            try:
+                painel = driver.execute_script(
+                    """
+                    const raiz = document.querySelector("div[role='main']");
+                    if (!raiz) return null;
+                    const candidatos = [raiz, ...raiz.querySelectorAll("div")];
+                    return candidatos
+                      .filter((item) => item.scrollHeight > item.clientHeight + 20)
+                      .sort(
+                        (a, b) =>
+                          (b.scrollHeight - b.clientHeight) -
+                          (a.scrollHeight - a.clientHeight),
+                      )[0] || raiz;
+                    """
+                )
+                if not painel:
+                    return ""
+                driver.execute_script(
+                    "arguments[0].scrollTop += 500", painel
+                )
+                self.navegador.controle.esperar(0.6)
+            except (StaleElementReferenceException, WebDriverException) as erro:
+                self.log.warning(
+                    "Instagram não pôde ser pesquisado; "
+                    "a empresa continuará: %s",
+                    type(erro).__name__,
+                )
+                return ""
+        return ""
+
+    @classmethod
+    def _primeiro_instagram(cls, driver: Any) -> str:
+        try:
+            links = driver.find_elements(
+                By.CSS_SELECTOR,
+                "a[href*='instagram.com'], a[data-item-id*='instagram' i]",
+            )
+            for link in links:
+                url = cls._normalizar_instagram(
+                    link.get_attribute("href") or ""
+                )
+                if url:
+                    return url
+        except (StaleElementReferenceException, WebDriverException):
+            return ""
+        return ""
+
+    @staticmethod
+    def _normalizar_instagram(url: str) -> str:
+        url = url.strip()
+        if not url:
+            return ""
+        partes = urlsplit(url)
+        if "google." in partes.netloc.casefold():
+            parametros = parse_qs(partes.query)
+            url = (parametros.get("q") or parametros.get("url") or [""])[0]
+            partes = urlsplit(url)
+        host = partes.netloc.casefold().removeprefix("www.")
+        if host not in {"instagram.com", "m.instagram.com"}:
+            return ""
+        return urlunsplit(("https", "www.instagram.com", partes.path.rstrip("/"), "", ""))
 
     @staticmethod
     def _extrair_telefone(driver: Any) -> str:

@@ -28,6 +28,8 @@ CAMPOS_CSV = (
     "Cidade",
     "Telefone",
     "Avaliações",
+    "Site",
+    "Instagram",
     "Link Google Maps",
 )
 VERSAO_FILTRO_LEADS = 3
@@ -200,6 +202,7 @@ class ScraperMaps:
         self.estado["versao_filtro_leads"] = VERSAO_FILTRO_LEADS
 
     def _processar_cidades(self) -> None:
+        self._atualizar_colunas_csv()
         novo_csv = (
             not self.csv_path.exists() or self.csv_path.stat().st_size == 0
         )
@@ -279,6 +282,38 @@ class ScraperMaps:
                     proximo_item=0,
                 )
                 self.checkpoint.salvar("running")
+
+    def _atualizar_colunas_csv(self) -> None:
+        """Inclui as novas colunas sem perder leads de versões anteriores."""
+        if not self.csv_path.exists() or self.csv_path.stat().st_size == 0:
+            return
+        temporario = self.csv_path.with_suffix(".csv.tmp")
+        try:
+            with self.csv_path.open(
+                newline="", encoding="utf-8-sig"
+            ) as origem:
+                leitor = csv.DictReader(origem)
+                if tuple(leitor.fieldnames or ()) == CAMPOS_CSV:
+                    return
+                linhas = list(leitor)
+            with temporario.open(
+                "w", newline="", encoding="utf-8-sig"
+            ) as destino:
+                writer = csv.DictWriter(
+                    destino,
+                    fieldnames=CAMPOS_CSV,
+                    extrasaction="ignore",
+                )
+                writer.writeheader()
+                for linha in linhas:
+                    writer.writerow(linha)
+            temporario.replace(self.csv_path)
+            self.log.info(
+                "CSV atualizado com as colunas Site e Instagram."
+            )
+        except (OSError, csv.Error):
+            temporario.unlink(missing_ok=True)
+            raise
 
     def _executar_cidade(
         self,

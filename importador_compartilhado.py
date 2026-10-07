@@ -347,12 +347,16 @@ class Importador:
             "company": row["Nome"].strip(),
             "phone": row.get("Telefone", "").strip(),
             "city": row.get("Cidade", "").strip() or None,
+            "website": row.get("Site", "").strip() or None,
+            "instagram": row.get("Instagram", "").strip() or None,
             "source": self.config["nicho"],
             "estimated_value": self.config["ticket_estimado"],
             "niche": self.config["nicho"],
             "first_contact_message": self.config["mensagem_inicial"],
             "owner_id": self.owner_id,
-            "notes": row.get("Link Google Maps", "").strip(),
+            "google_maps_url": (
+                row.get("Link Google Maps", "").strip() or None
+            ),
             "created_at": agora,
             "updated_at": agora,
         }

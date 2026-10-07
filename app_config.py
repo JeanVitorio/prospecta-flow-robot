@@ -16,7 +16,11 @@ from dotenv import dotenv_values
 
 def configuracao_disponivel() -> bool:
     values = dotenv_values(env_path())
-    return bool(values.get("SUPABASE_URL") and values.get("SUPABASE_SERVICE_KEY"))
+    return bool(
+        values.get("PROSPECTA_WEB_URL")
+        and values.get("SUPABASE_URL")
+        and values.get("SUPABASE_SERVICE_KEY")
+    )
 
 
 def configurar_interativo() -> bool:
@@ -27,13 +31,14 @@ def configurar_interativo() -> bool:
 
     raiz = tk.Tk()
     raiz.title("Configurar Prospecta Flow")
-    raiz.geometry("620x360")
+    raiz.geometry("620x410")
     raiz.resizable(False, False)
     corpo = ttk.Frame(raiz, padding=24)
     corpo.pack(fill="both", expand=True)
     corpo.columnconfigure(1, weight=1)
 
     campos = (
+        ("PROSPECTA_WEB_URL", "Link da Web", False),
         ("SUPABASE_URL", "URL do Supabase", False),
         ("SUPABASE_SERVICE_KEY", "Chave service_role", True),
         ("PROSPECTA_RUNNER_NAME", "Nome desta máquina", False),
@@ -70,8 +75,14 @@ def configurar_interativo() -> bool:
             chave: variavel.get().strip()
             for chave, variavel in variaveis.items()
         }
-        partes = urlsplit(valores["SUPABASE_URL"])
-        if partes.scheme != "https" or not partes.netloc:
+        web = urlsplit(valores["PROSPECTA_WEB_URL"])
+        if web.scheme != "https" or not web.netloc:
+            messagebox.showerror(
+                "Configuração inválida", "Informe um link HTTPS válido para a Web."
+            )
+            return
+        supabase = urlsplit(valores["SUPABASE_URL"])
+        if supabase.scheme != "https" or not supabase.netloc:
             messagebox.showerror(
                 "Configuração inválida", "Informe uma URL HTTPS válida do Supabase."
             )
