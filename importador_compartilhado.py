@@ -138,6 +138,8 @@ class Importador:
             )
         self.estado.setdefault("ultimo_erro", "")
         self.estado.setdefault("lote_csv_processado", 0)
+        self.estado.setdefault("limite_leads_atingido", False)
+        self.estado.setdefault("proxima_verificacao_quota", 0.0)
 
     def _monitorar(self) -> None:
         while True:
@@ -157,18 +159,38 @@ class Importador:
                     self.estado.get("falhas_pendentes") or 0
                 )
                 csv_alterado = mtime != self.estado.get("mtime_csv")
+                quota_bloqueada = bool(
+                    self.estado.get("limite_leads_atingido")
+                )
+                verificar_quota = (
+                    time.time()
+                    >= float(
+                        self.estado.get("proxima_verificacao_quota") or 0
+                    )
+                )
                 if mtime is not None and (
                     lote_disponivel > lote_processado
                     or csv_alterado
                     or falhas_pendentes > 0
-                ):
+                ) and (not quota_bloqueada or verificar_quota):
                     self.estado["atividade_atual"] = "Processando novos leads"
-                    inseridos, falhas = self._processar_csv()
+                    inseridos, falhas, limite_atingido = self._processar_csv()
                     self.estado["ultima_execucao"] = agora_iso()
                     self.estado["mtime_csv"] = mtime
                     self.estado["falhas_pendentes"] = falhas
-                    if falhas == 0:
+                    self.estado["limite_leads_atingido"] = limite_atingido
+                    self.estado["proxima_verificacao_quota"] = (
+                        time.time() + 300 if limite_atingido else 0.0
+                    )
+                    if falhas == 0 and not limite_atingido:
                         self.estado["lote_csv_processado"] = lote_disponivel
+                    elif limite_atingido:
+                        self.estado["atividade_atual"] = (
+                            "Limite mensal atingido; faça upgrade para continuar"
+                        )
+                        self.log.warning(
+                            "Importação pausada porque o limite mensal foi atingido."
+                        )
                     else:
                         self.estado["atividade_atual"] = (
                             "Falha ao importar leads; nova tentativa agendada"
@@ -194,14 +216,15 @@ class Importador:
 
     def _processar_csv(
         self, respeitar_controle: bool = True
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, bool]:
         if not self.csv_path.exists():
-            return 0, 0
+            return 0, 0, False
         existentes = self._carregar_existentes()
         pendentes: list[tuple[dict[str, str], str]] = []
         chaves_pendentes: set[str] = set()
         inseridos = 0
         falhas = 0
+        limite_atingido = False
         with self.csv_path.open(
             newline="", encoding="utf-8-sig"
         ) as arquivo:
@@ -231,15 +254,34 @@ class Importador:
                 "running" if respeitar_controle else "stopping"
             )
             try:
-                self._inserir_lote([row for row, _chave in lote])
+                resultado = self._inserir_lote(
+                    [row for row, _chave in lote],
+                    [chave for _row, chave in lote],
+                )
+                chaves_processadas = self._chaves_resultado(
+                    resultado.get("processed_leads")
+                )
+                chaves_inseridas = self._chaves_resultado(
+                    resultado.get("inserted_leads")
+                )
                 for row, chave in lote:
-                    existentes.add(chave)
-                    inseridos += 1
-                    self.estado.update(
-                        ultimo_lead_importado=row["Nome"].strip(),
-                        ultimo_lead_importado_em=agora_iso(),
-                        leads_importados=int(self.estado["leads_importados"]) + 1,
+                    if chave in chaves_processadas:
+                        existentes.add(chave)
+                    if chave in chaves_inseridas:
+                        inseridos += 1
+                        self.estado.update(
+                            ultimo_lead_importado=row["Nome"].strip(),
+                            ultimo_lead_importado_em=agora_iso(),
+                            leads_importados=(
+                                int(self.estado["leads_importados"]) + 1
+                            ),
+                        )
+                if bool(resultado.get("limit_reached")):
+                    limite_atingido = True
+                    falhas += len(pendentes) - inicio - len(
+                        chaves_processadas
                     )
+                    break
             except Exception as erro:
                 falhas += len(lote)
                 self.estado.update(
@@ -260,10 +302,14 @@ class Importador:
             self.checkpoint.registrar_evento(
                 "lote_leads_processado",
                 "Lote de leads processado.",
-                {"importados": inseridos, "falhas": falhas},
-                "warning" if falhas else "info",
+                {
+                    "importados": inseridos,
+                    "falhas": falhas,
+                    "limite_atingido": limite_atingido,
+                },
+                "warning" if falhas or limite_atingido else "info",
             )
-        return inseridos, falhas
+        return inseridos, falhas, limite_atingido
 
     def _carregar_existentes(self) -> set[str]:
         if self.existentes is not None:
@@ -335,10 +381,39 @@ class Importador:
         )
         return resposta.data[0]["id"] if resposta.data else None
 
-    def _inserir_lote(self, rows: list[dict[str, str]]) -> None:
+    def _inserir_lote(
+        self,
+        rows: list[dict[str, str]],
+        chaves: list[str],
+    ) -> dict[str, Any]:
         payloads = [self._payload(row) for row in rows]
-        if payloads:
-            self.supabase.table("leads").insert(payloads).execute()
+        if not payloads:
+            return {}
+        lote_hash = hashlib.sha256(
+            f"{self.config['id']}|{'|'.join(chaves)}".encode("utf-8")
+        ).hexdigest()
+        resposta = self.supabase.rpc(
+            "prospecta_insert_leads_with_quota",
+            {
+                "p_bot_id": self.config["id"],
+                "p_leads": payloads,
+                "p_batch_key": lote_hash,
+            },
+        ).execute()
+        return dict(resposta.data or {})
+
+    @classmethod
+    def _chaves_resultado(cls, itens: Any) -> set[str]:
+        if not isinstance(itens, list):
+            return set()
+        return {
+            cls._chave(
+                str(item.get("name", "")),
+                str(item.get("phone", "")),
+            )
+            for item in itens
+            if isinstance(item, dict) and item.get("name")
+        }
 
     def _payload(self, row: dict[str, str]) -> dict[str, Any]:
         agora = datetime.now(timezone.utc).isoformat()

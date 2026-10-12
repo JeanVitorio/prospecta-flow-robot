@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.12"
+  #define MyAppVersion "1.0.13"
 #endif
 
 #define MyAppName "Prospecta Flow"
@@ -11,8 +11,8 @@ AppId={{7A8713D7-A5D7-4E2A-80CF-6DA03156B40C}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL=https://jvs-prospecta-flow.netlify.app/
-AppSupportURL=https://jvs-prospecta-flow.netlify.app/
+AppPublisherURL=https://jvstech.com.br/
+AppSupportURL=https://jvstech.com.br/
 DefaultDirName={localappdata}\Programs\ProspectaFlow
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -57,7 +57,7 @@ Type: filesandordirs; Name: "{localappdata}\ProspectaFlow"
 Type: filesandordirs; Name: "{app}"
 
 [Icons]
-Name: "{group}\Configurar Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"
+Name: "{group}\Entrar no Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
 Name: "{group}\Painel Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
 Name: "{group}\Servidor Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"
 Name: "{group}\Desinstalar Prospecta Flow"; Filename: "{uninstallexe}"
@@ -65,5 +65,4 @@ Name: "{autodesktop}\Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Paramet
 Name: "{userstartup}\Prospecta Flow Server"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"; Description: "Configurar conexão"; Flags: postinstall waituntilterminated skipifsilent
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"; Description: "Iniciar servidor"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Description: "Entrar no Prospecta Flow"; Flags: postinstall nowait skipifsilent

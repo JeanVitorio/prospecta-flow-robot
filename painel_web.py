@@ -12,10 +12,14 @@ from typing import Any
 from app_version import __version__
 from atualizador import Atualizador
 from app_paths import data_path, install_root, is_frozen, resource_path
+from app_session import salvar_sessao
 from execucao_bot import bloquear_energia, liberar_energia
 
 
-WEB_APP_URL = os.getenv("PROSPECTA_WEB_URL", "").strip()
+WEB_APP_URL = os.getenv(
+    "PROSPECTA_WEB_URL",
+    "https://jvstech.com.br/LeadFlow/",
+).strip()
 LOG = logging.getLogger("prospecta_painel_web")
 
 
@@ -33,6 +37,24 @@ class ApiAtualizacao:
 
     def obter_versao_instalada(self) -> dict[str, str]:
         return {"version": __version__}
+
+    def configurar_sessao(
+        self, payload: dict[str, str]
+    ) -> dict[str, str]:
+        """Vincula o login web ao runner sem armazenar service_role."""
+        try:
+            salvar_sessao(payload)
+            _garantir_runner()
+            return {
+                "status": "connected",
+                "message": "Executor conectado à sua conta.",
+            }
+        except Exception as erro:
+            LOG.warning("Sessão nativa não configurada: %s", erro)
+            return {
+                "status": "error",
+                "message": "Não foi possível conectar o executor.",
+            }
 
     def buscar_e_instalar_atualizacao(self) -> dict[str, str]:
         try:
@@ -97,7 +119,6 @@ def main() -> None:
             "Configure PROSPECTA_WEB_URL com o link HTTPS da Web deste cliente."
         )
 
-    _garantir_runner()
     bloquear_energia()
     try:
         import webview

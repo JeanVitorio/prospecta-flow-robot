@@ -14,6 +14,7 @@ import bot_config
 import bot_repository
 import message_repository
 from atualizador import Atualizador
+from app_session import usuario_sessao
 from painel_processos import GerenciadorProcessos
 from whatsapp_gateway_process import GatewayWhatsApp
 
@@ -31,7 +32,13 @@ class RunnerRemoto:
 
     def __init__(self) -> None:
         hostname = socket.gethostname() or platform.node() or "executor"
-        self.runner_id = os.getenv("PROSPECTA_RUNNER_ID", hostname).strip()
+        usuario_id = usuario_sessao()
+        runner_padrao = (
+            f"{usuario_id}:{hostname}" if usuario_id else hostname
+        )
+        self.runner_id = os.getenv(
+            "PROSPECTA_RUNNER_ID", runner_padrao
+        ).strip()
         if not self.runner_id:
             raise RuntimeError("PROSPECTA_RUNNER_ID não pode ser vazio.")
         self.ambiente = os.getenv(
@@ -54,6 +61,7 @@ class RunnerRemoto:
         try:
             while True:
                 try:
+                    self._atualizar_identidade()
                     agora = time.monotonic()
                     if agora >= proximo_heartbeat:
                         self._registrar("online")
@@ -85,6 +93,15 @@ class RunnerRemoto:
                 self._registrar("offline")
             except bot_repository.ErroPersistencia:
                 pass
+
+    def _atualizar_identidade(self) -> None:
+        usuario_id = usuario_sessao()
+        if not usuario_id or self.runner_id.startswith(f"{usuario_id}:"):
+            return
+        hostname = socket.gethostname() or platform.node() or "executor"
+        self.runner_id = f"{usuario_id}:{hostname}"
+        os.environ["PROSPECTA_RUNNER_ID"] = self.runner_id
+        self.processos = GerenciadorProcessos(self.runner_id)
 
     def _processar_comandos(self) -> None:
         for controle in bot_repository.listar_comandos_runner(self.runner_id):

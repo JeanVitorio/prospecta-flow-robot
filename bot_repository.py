@@ -7,6 +7,7 @@ import threading
 from typing import Any
 
 from app_paths import env_path
+from app_session import carregar_sessao, salvar_sessao
 from dotenv import load_dotenv
 
 
@@ -53,16 +54,55 @@ def obter_cliente() -> Any:
         if _cliente is not None:
             return _cliente
         load_dotenv(env_path(), override=False)
-        url = os.getenv("SUPABASE_URL", "").strip()
-        chave = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+        sessao = carregar_sessao()
+        url = (
+            str(sessao.get("supabase_url", "")).strip()
+            if sessao
+            else os.getenv("SUPABASE_URL", "").strip()
+        )
+        chave = (
+            str(sessao.get("publishable_key", "")).strip()
+            if sessao
+            else os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+        )
         if not url or not chave:
             raise ErroPersistencia(
-                "Configure SUPABASE_URL e SUPABASE_SERVICE_KEY no arquivo .env."
+                "Abra o aplicativo e faça login para conectar este executor."
             )
         try:
             from supabase import create_client
 
             _cliente = create_client(url, chave)
+            if sessao:
+                autenticacao = _cliente.auth.refresh_session(
+                    str(sessao["refresh_token"])
+                )
+                if not autenticacao.session:
+                    raise RuntimeError("Sessão Supabase não renovada.")
+                _cliente.auth.set_session(
+                    autenticacao.session.access_token,
+                    autenticacao.session.refresh_token,
+                )
+                def persistir_sessao(
+                    _evento: Any, sessao_atualizada: Any
+                ) -> None:
+                    if not sessao_atualizada:
+                        return
+                    salvar_sessao(
+                        {
+                            "supabase_url": url,
+                            "publishable_key": chave,
+                            "access_token": (
+                                sessao_atualizada.access_token
+                            ),
+                            "refresh_token": (
+                                sessao_atualizada.refresh_token
+                            ),
+                        }
+                    )
+
+                persistir_sessao("", autenticacao.session)
+                _cliente.auth.on_auth_state_change(persistir_sessao)
         except Exception as erro:
             raise ErroPersistencia(
                 "Não foi possível inicializar a conexão com o Supabase."
@@ -92,10 +132,13 @@ def _executar(acao: str, chamada: Any) -> Any:
         raise
     except Exception as erro:
         detalhe = str(erro).casefold()
-        if "invalid api key" in detalhe or "'code': 401" in detalhe:
+        if (
+            "invalid api key" in detalhe
+            or "'code': 401" in detalhe
+            or "jwt expired" in detalhe
+        ):
             raise ErroPersistencia(
-                "A SUPABASE_SERVICE_KEY foi recusada pelo Supabase. "
-                "Atualize a chave no arquivo .env."
+                "A sessão do aplicativo expirou. Abra o painel e faça login novamente."
             ) from erro
         if "pgrst205" in detalhe or (
             "could not find the table" in detalhe

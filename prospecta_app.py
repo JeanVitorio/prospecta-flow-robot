@@ -8,7 +8,6 @@ import multiprocessing
 import os
 import sys
 
-from app_config import configuracao_disponivel, configurar_interativo
 from app_paths import configure_bundled_runtime, data_path, env_path
 from app_version import __version__
 from dotenv import load_dotenv
@@ -38,7 +37,10 @@ def main(argv: list[str] | None = None) -> int:
         print(__version__)
         return 0
     if args.configure:
-        return 0 if configurar_interativo() else 1
+        from painel_web import main as panel_main
+
+        panel_main()
+        return 0
     if args.worker:
         from bot_repository import ConflitoVersao
         from bot_dinamico import main as worker_main
@@ -51,10 +53,6 @@ def main(argv: list[str] | None = None) -> int:
                 "por outro executor."
             )
         return 0
-
-    if not configuracao_disponivel() and not configurar_interativo():
-        return 1
-    load_dotenv(env_path(), override=True)
 
     if args.panel:
         from painel_web import main as panel_main
