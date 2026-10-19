@@ -1,0 +1,17 @@
+REPOSITÓRIO: APLICATIVO LEADFLOW
+
+O que é:
+Este é o repositório do aplicativo instalado no computador do cliente.
+Ele contém a automação responsável pela prospecção de empresas, extração
+de dados do Google, execução dos bots e integração do aplicativo com a
+plataforma LeadFlow.
+
+Principais responsabilidades:
+- Executar a prospecção e geração de leads.
+- Buscar e enriquecer os dados das empresas.
+- Executar e acompanhar os bots do aplicativo.
+- Integrar o aplicativo com a web e o banco de dados do LeadFlow.
+- Disponibilizar a versão instalável e seu mecanismo de atualização.
+
+Projeto no GitHub:
+https://github.com/JeanVitorio/prospecta-flow-robot

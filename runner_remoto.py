@@ -122,8 +122,6 @@ class RunnerRemoto:
                 self._requisicoes_confirmadas.add(requisicao)
 
     def _processar_comandos_mensagens(self) -> None:
-        if not self.gateway_ativo:
-            return
         for controle in message_repository.listar_comandos_runner(
             self.runner_id
         ):
@@ -138,6 +136,19 @@ class RunnerRemoto:
             if not config:
                 message_repository.confirmar_comando(bot_id, requisicao)
                 self._requisicoes_confirmadas.add(requisicao)
+                continue
+            provider = message_repository.obter_provider(config)
+            if provider not in message_repository.PROVIDERS_SUPORTADOS:
+                LOG.error(
+                    "Comando de mensagens ignorado: provider não suportado."
+                )
+                message_repository.confirmar_comando(bot_id, requisicao)
+                self._requisicoes_confirmadas.add(requisicao)
+                continue
+            if (
+                provider == message_repository.PROVIDER_WHATSAPP_WEB
+                and not self.gateway_ativo
+            ):
                 continue
             if comando == "rodando":
                 self.processos.iniciar_mensagens(str(config["slug"]))

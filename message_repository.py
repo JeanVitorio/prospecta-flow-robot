@@ -8,6 +8,13 @@ from uuid import UUID
 
 import bot_repository
 
+PROVIDER_WHATSAPP_WEB = "whatsapp_web"
+PROVIDER_META_CLOUD_API = "meta_cloud_api"
+PROVIDERS_SUPORTADOS = {
+    PROVIDER_WHATSAPP_WEB,
+    PROVIDER_META_CLOUD_API,
+}
+
 
 def _executar(acao: str, chamada: Callable[[], Any]) -> Any:
     try:
@@ -36,17 +43,51 @@ def carregar_config(referencia: str) -> dict[str, Any] | None:
         campo = "id"
     except (ValueError, TypeError, AttributeError):
         campo = "slug"
+    try:
+        dados = _consultar_config(
+            campo,
+            referencia,
+            "*, whatsapp_session:prospecta_whatsapp_sessions(provider)",
+        )
+    except bot_repository.ErroPersistencia:
+        # Compatibilidade com schemas anteriores sem provider/relacionamento.
+        dados = _consultar_config(campo, referencia, "*")
+    if not dados:
+        return None
+    config = dict(dados[0])
+    config["provider"] = obter_provider(config)
+    return config
+
+
+def _consultar_config(
+    campo: str, referencia: str, select: str
+) -> list[dict[str, Any]]:
     dados = _executar(
         "carregar a configuração do bot de mensagens",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_configs")
-        .select("*")
+        .select(select)
         .eq(campo, referencia)
         .is_("deleted_at", "null")
         .limit(1)
         .execute(),
     )
-    return dados[0] if dados else None
+    return list(dados or [])
+
+
+def obter_provider(config: dict[str, Any]) -> str:
+    """Obtém o transporte normalizado, preservando o schema legado."""
+    valor: Any = config.get("provider")
+    sessao = config.get("whatsapp_session")
+    if valor is None and isinstance(sessao, dict):
+        valor = sessao.get("provider")
+    elif valor is None and isinstance(sessao, list) and sessao:
+        primeiro = sessao[0]
+        if isinstance(primeiro, dict):
+            valor = primeiro.get("provider")
+    if valor is None or not str(valor).strip():
+        return PROVIDER_WHATSAPP_WEB
+    return str(valor).strip().casefold()
 
 
 def ler_comando(bot_id: str) -> dict[str, Any] | None:
