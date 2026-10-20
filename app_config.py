@@ -30,7 +30,7 @@ def configurar_interativo() -> bool:
     salvo = False
 
     raiz = tk.Tk()
-    raiz.title("Configurar Prospecta Flow")
+    raiz.title("Configurar LeadFlow")
     raiz.geometry("620x410")
     raiz.resizable(False, False)
     corpo = ttk.Frame(raiz, padding=24)
@@ -94,7 +94,7 @@ def configurar_interativo() -> bool:
             return
         _gravar_env(destino, valores)
         salvo = True
-        messagebox.showinfo("Prospecta Flow", "Configuração salva com sucesso.")
+        messagebox.showinfo("LeadFlow", "Configuração salva com sucesso.")
         raiz.destroy()
 
     botoes = ttk.Frame(corpo)

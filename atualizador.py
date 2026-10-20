@@ -113,7 +113,7 @@ class Atualizador:
             self.metadata_url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": f"ProspectaFlow/{__version__}",
+                "User-Agent": f"LeadFlow/{__version__}",
             },
         )
         with urlopen(request, timeout=15) as response:
@@ -130,12 +130,12 @@ class Atualizador:
 
     def _download(self, info: UpdateInfo) -> Path:
         destination = data_path(
-            "updates", f"ProspectaFlowSetup-{info.version}.exe"
+            "updates", f"LeadFlowSetup-{info.version}.exe"
         )
         temporary = destination.with_suffix(".download")
         request = Request(
             info.url,
-            headers={"User-Agent": f"ProspectaFlow/{__version__}"},
+            headers={"User-Agent": f"LeadFlow/{__version__}"},
         )
         digest = hashlib.sha256()
         with urlopen(request, timeout=60) as response, temporary.open("wb") as output:

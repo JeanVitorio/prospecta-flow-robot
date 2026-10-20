@@ -1,4 +1,4 @@
-"""Janela desktop que incorpora a interface Web do Prospecta Flow."""
+"""Janela desktop que incorpora a interface Web do LeadFlow."""
 
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ def main() -> None:
 
         api = ApiAtualizacao()
         janela = webview.create_window(
-            "Prospecta Flow",
+            "LeadFlow",
             WEB_APP_URL,
             width=1440,
             height=900,

@@ -1,4 +1,4 @@
-"""Interface gráfica limpa do Prospecta Flow Robot."""
+"""Interface gráfica limpa do LeadFlow."""
 from __future__ import annotations
 
 import queue
@@ -17,7 +17,7 @@ from painel_processos import GerenciadorProcessos
 class PainelProspecta:
     def __init__(self, raiz: tk.Tk) -> None:
         self.raiz = raiz
-        self.raiz.title("Prospecta Flow Robot")
+        self.raiz.title("LeadFlow")
         self.raiz.geometry("1120x760")
         self.raiz.minsize(820, 560)
         self._fila: queue.Queue[tuple[Any, ...]] = queue.Queue()
@@ -40,7 +40,7 @@ class PainelProspecta:
         estilo.configure("Titulo.TLabel", font=("Segoe UI", 22, "bold"))
         topo = ttk.Frame(self.raiz, padding=(22, 18))
         topo.pack(fill="x")
-        ttk.Label(topo, text="Prospecta Flow Robot", style="Titulo.TLabel").pack(
+        ttk.Label(topo, text="LeadFlow", style="Titulo.TLabel").pack(
             side="left"
         )
         ttk.Button(topo, text="Novo bot", command=self._novo_bot).pack(
@@ -157,7 +157,7 @@ class PainelProspecta:
         def sucesso(_resultado: Any) -> None:
             if janela.winfo_exists():
                 janela.destroy()
-            messagebox.showinfo("Prospecta Flow Robot", "Bot salvo com sucesso.")
+            messagebox.showinfo("LeadFlow", "Bot salvo com sucesso.")
             self.atualizar_lista()
 
         self._executar(

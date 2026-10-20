@@ -1,8 +1,8 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.14"
+  #define MyAppVersion "1.0.15"
 #endif
 
-#define MyAppName "Prospecta Flow"
+#define MyAppName "LeadFlow"
 #define MyAppPublisher "JVS Tech"
 #define MyAppExeName "ProspectaFlow.exe"
 
@@ -13,13 +13,13 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL=https://jvstech.com.br/
 AppSupportURL=https://jvstech.com.br/
-DefaultDirName={localappdata}\Programs\ProspectaFlow
+DefaultDirName={localappdata}\Programs\LeadFlow
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
 PrivilegesRequired=lowest
 CreateUninstallRegKey=yes
-OutputBaseFilename=ProspectaFlowSetup
+OutputBaseFilename=LeadFlowSetup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -48,6 +48,9 @@ Source: "stop-app-processes.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\whatsapp_gateway"
+Type: filesandordirs; Name: "{autoprograms}\Prospecta Flow"
+Type: files; Name: "{autodesktop}\Prospecta Flow.lnk"
+Type: files; Name: "{userstartup}\Prospecta Flow Server.lnk"
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\stop-app-processes.ps1"" -InstallPath ""{app}"""; Flags: runhidden waituntilterminated
@@ -57,12 +60,12 @@ Type: filesandordirs; Name: "{localappdata}\ProspectaFlow"
 Type: filesandordirs; Name: "{app}"
 
 [Icons]
-Name: "{group}\Entrar no Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
-Name: "{group}\Painel Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
-Name: "{group}\Servidor Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"
-Name: "{group}\Desinstalar Prospecta Flow"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Prospecta Flow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Tasks: desktopicon
-Name: "{userstartup}\Prospecta Flow Server"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"; Tasks: autostart
+Name: "{group}\Entrar no LeadFlow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
+Name: "{group}\Painel LeadFlow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"
+Name: "{group}\Servidor LeadFlow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"
+Name: "{group}\Desinstalar LeadFlow"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\LeadFlow"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Tasks: desktopicon
+Name: "{userstartup}\LeadFlow Server"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--runner"; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Description: "Entrar no Prospecta Flow"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--panel"; Description: "Entrar no LeadFlow"; Flags: postinstall nowait skipifsilent

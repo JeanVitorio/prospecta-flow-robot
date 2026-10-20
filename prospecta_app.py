@@ -19,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     load_dotenv(env_path(), override=False)
     _configure_logging()
 
-    parser = argparse.ArgumentParser(description="Prospecta Flow")
+    parser = argparse.ArgumentParser(description="LeadFlow")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--runner", action="store_true")
     mode.add_argument("--panel", action="store_true")

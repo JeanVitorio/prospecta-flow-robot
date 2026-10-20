@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.14",
+    [string]$Version = "1.0.15",
     [switch]$SkipAppBuild,
     [switch]$SkipChrome,
     [switch]$SkipPortable,
@@ -119,7 +119,7 @@ Set-Content `
     -Encoding ascii
 
 if (-not $SkipPortable) {
-    $PortableZip = Join-Path $ReleaseRoot "ProspectaFlow-$Version-portable.zip"
+    $PortableZip = Join-Path $ReleaseRoot "LeadFlow-$Version-portable.zip"
     Remove-Item $PortableZip -ErrorAction SilentlyContinue
     $Tar = Get-Command "tar.exe" -ErrorAction SilentlyContinue
     if ($Tar) {
@@ -147,11 +147,11 @@ if (-not $SkipInstaller) {
         (Join-Path $PSScriptRoot "ProspectaFlow.iss")
     Assert-LastExitCode "Geração do instalador"
 
-    $Installer = Join-Path $ReleaseRoot "ProspectaFlowSetup.exe"
+    $Installer = Join-Path $ReleaseRoot "LeadFlowSetup.exe"
     $Hash = (Get-FileHash $Installer -Algorithm SHA256).Hash.ToLowerInvariant()
     $Metadata = [ordered]@{
         version = $Version
-        url = "https://github.com/JeanVitorio/prospecta-flow-robot/releases/download/v$Version/ProspectaFlowSetup.exe"
+        url = "https://github.com/JeanVitorio/prospecta-flow-robot/releases/download/v$Version/LeadFlowSetup.exe"
         sha256 = $Hash
         required = $false
     }
