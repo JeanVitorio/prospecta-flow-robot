@@ -25,6 +25,9 @@ DEFAULT_UPDATE_URL = (
     "releases/latest/download/version.json"
 )
 _VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+# Instaladores só podem vir dos releases oficiais deste repositório.
+_RELEASE_HOST = "github.com"
+_RELEASE_PATH_PREFIX = "/JeanVitorio/prospecta-flow-robot/releases/download/"
 
 
 @dataclass(frozen=True)
@@ -123,7 +126,7 @@ class Atualizador:
         sha256 = str(payload.get("sha256", "")).strip().casefold()
         if not _VERSION.fullmatch(version):
             raise ValueError("Versão remota inválida")
-        _require_https(url)
+        _require_release_url(url)
         if not re.fullmatch(r"[0-9a-f]{64}", sha256):
             raise ValueError("Hash SHA-256 inválido")
         return UpdateInfo(version, url, sha256, bool(payload.get("required")))
@@ -158,6 +161,21 @@ def _version_tuple(value: str) -> tuple[int, int, int]:
 def _require_https(value: str) -> None:
     if urlsplit(value).scheme != "https":
         raise ValueError("Atualização deve usar HTTPS")
+
+
+def _require_release_url(value: str) -> None:
+    _require_https(value)
+    partes = urlsplit(value)
+    if (
+        partes.hostname != _RELEASE_HOST
+        or partes.port is not None
+        or partes.username
+        or partes.password
+        or not partes.path.startswith(_RELEASE_PATH_PREFIX)
+        or ".." in partes.path
+        or not partes.path.casefold().endswith(".exe")
+    ):
+        raise ValueError("Origem da atualização não autorizada")
 
 
 def _powershell_quote(value: str) -> str:

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 from typing import Any
+from urllib.parse import urlsplit
 
 from app_version import __version__
 from atualizador import Atualizador
@@ -35,6 +36,22 @@ class ApiAtualizacao:
     def _vincular_janela(self, janela: Any) -> None:
         self._janela = janela
 
+    def _origem_confiavel(self) -> bool:
+        """Só a Web oficial pode acionar recursos nativos."""
+        if self._janela is None:
+            return False
+        try:
+            atual = urlsplit(str(self._janela.get_current_url() or ""))
+        except Exception:
+            return False
+        esperado = urlsplit(WEB_APP_URL)
+        prefixo = esperado.path.rstrip("/")
+        return (
+            atual.scheme == "https"
+            and atual.netloc.casefold() == esperado.netloc.casefold()
+            and (atual.path == prefixo or atual.path.startswith(prefixo + "/"))
+        )
+
     def obter_versao_instalada(self) -> dict[str, str]:
         return {"version": __version__}
 
@@ -42,6 +59,9 @@ class ApiAtualizacao:
         self, payload: dict[str, str]
     ) -> dict[str, str]:
         """Vincula o login web ao runner sem armazenar service_role."""
+        if not self._origem_confiavel():
+            LOG.warning("Sessão nativa recusada: origem não autorizada.")
+            return {"status": "error", "message": "Origem não autorizada."}
         try:
             salvar_sessao(payload)
             _garantir_runner()
@@ -57,6 +77,13 @@ class ApiAtualizacao:
             }
 
     def buscar_e_instalar_atualizacao(self) -> dict[str, str]:
+        if not self._origem_confiavel():
+            LOG.warning("Atualização recusada: origem não autorizada.")
+            return {
+                "status": "error",
+                "version": __version__,
+                "message": "Origem não autorizada.",
+            }
         try:
             resultado = self._atualizador.check_now()
             if not resultado:

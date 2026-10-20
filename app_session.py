@@ -22,6 +22,10 @@ class _DataBlob(ctypes.Structure):
 
 
 CRYPTPROTECT_UI_FORBIDDEN = 0x01
+# Impede que uma página adulterada redirecione o executor para outro banco.
+SUPABASE_HOST_PERMITIDO = os.getenv(
+    "PROSPECTA_SUPABASE_HOST", "aourdqlbrrzbqguuoawf.supabase.co"
+).strip().casefold()
 
 
 def salvar_sessao(dados: dict[str, str]) -> None:
@@ -37,7 +41,13 @@ def salvar_sessao(dados: dict[str, str]) -> None:
         for chave in obrigatorios
     }
     url = urlsplit(valores["supabase_url"])
-    if url.scheme != "https" or not url.netloc:
+    if (
+        url.scheme != "https"
+        or (url.hostname or "").casefold() != SUPABASE_HOST_PERMITIDO
+        or url.port is not None
+        or url.username
+        or url.password
+    ):
         raise ValueError("URL do Supabase inválida.")
     if any(not valores[chave] for chave in obrigatorios):
         raise ValueError("A sessão recebida está incompleta.")
