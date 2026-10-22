@@ -1,4 +1,4 @@
-"""Testes da seleção e preservação dos transportes de WhatsApp."""
+"""Testes do transporte WhatsApp Web dos agentes de mensagens."""
 
 from __future__ import annotations
 
@@ -20,29 +20,25 @@ class MensageiroWhatsAppTest(unittest.TestCase):
         }
 
     @patch.dict("os.environ", {"PROSPECTA_RUNNER_ID": "runner-1"})
-    @patch("mensageiro_whatsapp.ClienteMetaCloudAPI")
     @patch("mensageiro_whatsapp.ClienteGateway")
     @patch("mensageiro_whatsapp.criar_logger")
     @patch("mensageiro_whatsapp.data_path")
     @patch("mensageiro_whatsapp.repositorio.carregar_config")
-    def test_seleciona_cliente_meta_sem_gateway(
+    def test_whatsapp_web_abre_gateway(
         self,
         carregar_config: MagicMock,
         _data_path: MagicMock,
         _logger: MagicMock,
         cliente_gateway: MagicMock,
-        cliente_meta: MagicMock,
     ) -> None:
-        carregar_config.return_value = self._config("meta_cloud_api")
+        carregar_config.return_value = self._config("whatsapp_web")
 
         mensageiro = MensageiroWhatsApp("campanha")
 
-        cliente_gateway.assert_not_called()
-        cliente_meta.assert_called_once_with()
-        self.assertIsNone(mensageiro.gateway)
+        cliente_gateway.assert_called_once_with()
+        self.assertIs(mensageiro.gateway, cliente_gateway.return_value)
 
     @patch.dict("os.environ", {"PROSPECTA_RUNNER_ID": "runner-1"})
-    @patch("mensageiro_whatsapp.ClienteMetaCloudAPI")
     @patch("mensageiro_whatsapp.ClienteGateway")
     @patch("mensageiro_whatsapp.criar_logger")
     @patch("mensageiro_whatsapp.data_path")
@@ -53,15 +49,13 @@ class MensageiroWhatsAppTest(unittest.TestCase):
         _data_path: MagicMock,
         _logger: MagicMock,
         cliente_gateway: MagicMock,
-        cliente_meta: MagicMock,
     ) -> None:
-        carregar_config.return_value = self._config("desconhecido")
+        carregar_config.return_value = self._config("meta_cloud_api")
 
         with self.assertRaisesRegex(RuntimeError, "não suportado"):
             MensageiroWhatsApp("campanha")
 
         cliente_gateway.assert_not_called()
-        cliente_meta.assert_not_called()
 
     @patch("mensageiro_whatsapp.repositorio.finalizar_entrega")
     def test_modo_local_mantem_envio_e_finalizacao(
@@ -76,7 +70,6 @@ class MensageiroWhatsAppTest(unittest.TestCase):
             "exists": True,
             "sent": True,
         }
-        mensageiro.meta = None
         mensageiro._runtime = MagicMock()
 
         mensageiro._processar_lead(
@@ -93,28 +86,6 @@ class MensageiroWhatsAppTest(unittest.TestCase):
             "sessao-1", "5511999999999", "Olá, Ana"
         )
         finalizar.assert_called_once_with(10, "claim-local", "sent")
-
-    @patch("mensageiro_whatsapp.repositorio.finalizar_entrega")
-    def test_meta_nao_finaliza_entrega_no_desktop(
-        self, finalizar: MagicMock
-    ) -> None:
-        mensageiro = MensageiroWhatsApp.__new__(MensageiroWhatsApp)
-        mensageiro.provider = message_repository.PROVIDER_META_CLOUD_API
-        mensageiro.config = {"message_template": "Olá"}
-        mensageiro.gateway = None
-        mensageiro.meta = MagicMock()
-        mensageiro._runtime = MagicMock()
-
-        mensageiro._processar_lead(
-            {
-                "delivery_id": 11,
-                "claim_token": "claim-meta",
-                "lead_id": "lead-2",
-            }
-        )
-
-        mensageiro.meta.enviar.assert_called_once_with(11, "claim-meta")
-        finalizar.assert_not_called()
 
 
 if __name__ == "__main__":

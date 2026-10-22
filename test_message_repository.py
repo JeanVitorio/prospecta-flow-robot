@@ -18,10 +18,10 @@ class ProviderTest(unittest.TestCase):
 
     def test_provider_relacionado_e_normalizado(self) -> None:
         config = {
-            "whatsapp_session": {"provider": " META_CLOUD_API "}
+            "whatsapp_session": {"provider": " WHATSAPP_WEB "}
         }
         self.assertEqual(
-            message_repository.PROVIDER_META_CLOUD_API,
+            message_repository.PROVIDER_WHATSAPP_WEB,
             message_repository.obter_provider(config),
         )
 

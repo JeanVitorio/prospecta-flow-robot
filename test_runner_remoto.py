@@ -20,7 +20,7 @@ class RunnerRemotoTest(unittest.TestCase):
     @patch("runner_remoto.message_repository.confirmar_comando")
     @patch("runner_remoto.message_repository.carregar_config")
     @patch("runner_remoto.message_repository.listar_comandos_runner")
-    def test_meta_inicia_mesmo_sem_gateway(
+    def test_provider_meta_removido_e_ignorado(
         self,
         listar: MagicMock,
         carregar: MagicMock,
@@ -41,9 +41,7 @@ class RunnerRemotoTest(unittest.TestCase):
 
         runner._processar_comandos_mensagens()
 
-        runner.processos.iniciar_mensagens.assert_called_once_with(
-            "campanha-meta"
-        )
+        runner.processos.iniciar_mensagens.assert_not_called()
         confirmar.assert_called_once_with("bot-meta", "req-meta")
 
     @patch("runner_remoto.message_repository.confirmar_comando")

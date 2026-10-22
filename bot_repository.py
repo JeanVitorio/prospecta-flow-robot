@@ -148,7 +148,7 @@ def _executar(acao: str, chamada: Any) -> Any:
             and "prospecta_" in detalhe
         ):
             raise ErroPersistencia(
-                "O contrato de banco dos bots está desatualizado. Execute "
+                "O contrato de banco dos agentes está desatualizado. Execute "
                 "supabase_bot_tables.sql no SQL Editor do Supabase."
             ) from erro
         # Não propagamos resposta bruta para evitar dados sensíveis em logs.
@@ -366,7 +366,7 @@ def carregar_runtime_bot(bot_id: str) -> dict[str, Any] | None:
     dados = _rpc(
         "prospecta_get_bot_runtime",
         {"p_bot_id": bot_id},
-        "carregar o runtime do bot",
+        "carregar o runtime do agente",
     )
     return dados if isinstance(dados, dict) else None
 
@@ -376,7 +376,7 @@ def listar_runtimes_bots() -> list[dict[str, Any]]:
     dados = _rpc(
         "prospecta_list_bot_runtimes",
         {},
-        "listar os runtimes dos bots",
+        "listar os runtimes dos agentes",
     )
     return [
         item["runtime"]
@@ -391,7 +391,7 @@ def carregar_eventos_bot(
     dados = _rpc(
         "prospecta_get_bot_events",
         {"p_bot_id": bot_id, "p_limit": limite},
-        "carregar os eventos do bot",
+        "carregar os eventos do agente",
     )
     return list(dados or [])
 
@@ -469,7 +469,7 @@ def registrar_evento(
     if event_id:
         payload["event_id"] = event_id
     _executar(
-        "registrar o evento do bot",
+        "registrar o evento do agente",
         lambda: obter_cliente()
         .table("prospecta_bot_events")
         .upsert(payload, on_conflict="event_id")

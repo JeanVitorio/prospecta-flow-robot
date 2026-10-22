@@ -40,7 +40,7 @@ class JanelaBot(tk.Toplevel):
         config: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(mestre)
-        self.title("Editar bot" if config else "Novo bot")
+        self.title("Editar agente" if config else "Novo agente")
         self.geometry("720x900")
         self.minsize(620, 760)
         self.transient(mestre)
@@ -76,7 +76,7 @@ class JanelaBot(tk.Toplevel):
         corpo.columnconfigure(1, weight=1)
         ttk.Label(
             corpo,
-            text="Configuração do bot",
+            text="Configuração do agente",
             font=("Segoe UI", 16, "bold"),
         ).grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 14))
         for linha, (chave, rotulo) in enumerate(self.CAMPOS, start=1):
@@ -249,7 +249,7 @@ class JanelaLogs(tk.Toplevel):
         self._slug = slug
         barra = ttk.Frame(self, padding=8)
         barra.pack(fill="x")
-        ttk.Label(barra, text=f"Bot: {slug}", font=("Segoe UI", 11, "bold")).pack(
+        ttk.Label(barra, text=f"Agente: {slug}", font=("Segoe UI", 11, "bold")).pack(
             side="left"
         )
         ttk.Button(barra, text="Atualizar", command=self._atualizar).pack(side="right")
@@ -268,7 +268,7 @@ class JanelaLogs(tk.Toplevel):
                     partes.append(f"===== {caminho.name} =====\n{conteudo}")
                 except OSError:
                     partes.append(f"===== {caminho.name} indisponível =====")
-        exibicao = "\n\n".join(partes) or "Nenhum log disponível para este bot."
+        exibicao = "\n\n".join(partes) or "Nenhum log disponível para este agente."
         self._texto.configure(state="normal")
         self._texto.delete("1.0", "end")
         self._texto.insert("1.0", exibicao)

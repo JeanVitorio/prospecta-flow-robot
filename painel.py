@@ -43,7 +43,7 @@ class PainelProspecta:
         ttk.Label(topo, text="LeadFlow", style="Titulo.TLabel").pack(
             side="left"
         )
-        ttk.Button(topo, text="Novo bot", command=self._novo_bot).pack(
+        ttk.Button(topo, text="Novo agente", command=self._novo_bot).pack(
             side="right", padx=(8, 0)
         )
         ttk.Button(topo, text="Atualizar", command=self.atualizar_lista).pack(
@@ -115,7 +115,7 @@ class PainelProspecta:
                 "Supabase indisponível e cache local vazio. "
                 "Verifique a conexão e use Atualizar."
                 if fallback
-                else "Nenhum bot cadastrado. Use Novo bot para começar."
+                else "Nenhum agente cadastrado. Use Novo agente para começar."
             )
             ttk.Label(
                 self._conteudo,
@@ -130,7 +130,7 @@ class PainelProspecta:
             self._cards[config["slug"]] = card
             card.atualizar_estado(self._processos.status(config["slug"]))
         origem = "Supabase" if fonte == "supabase" else "cache local sinalizado"
-        self._mensagem.set(f"{len(configs)} bot(s) carregado(s) de {origem}.")
+        self._mensagem.set(f"{len(configs)} agente(s) carregado(s) de {origem}.")
         if configs:
             self._buscar_checkpoints_remotos(configs)
 
@@ -157,7 +157,7 @@ class PainelProspecta:
         def sucesso(_resultado: Any) -> None:
             if janela.winfo_exists():
                 janela.destroy()
-            messagebox.showinfo("LeadFlow", "Bot salvo com sucesso.")
+            messagebox.showinfo("LeadFlow", "Agente salvo com sucesso.")
             self.atualizar_lista()
 
         self._executar(
@@ -170,13 +170,13 @@ class PainelProspecta:
     def _excluir(self, config: dict[str, Any]) -> None:
         if self._processos.status(config["slug"]) != "Inativo":
             messagebox.showwarning(
-                "Bot em execução",
+                "Agente em execução",
                 "Solicite a parada e aguarde os processos terminarem antes de excluir.",
             )
             return
         if not messagebox.askyesno(
-            "Excluir bot",
-            f"Excluir logicamente o bot “{config['nome']}”?\n"
+            "Excluir agente",
+            f"Excluir logicamente o agente “{config['nome']}”?\n"
             "Os arquivos de execução locais não serão apagados.",
         ):
             return
@@ -184,7 +184,7 @@ class PainelProspecta:
         self._executar(
             "acao",
             lambda: bot_config.excluir_config(config["slug"]),
-            lambda _r: self._operacao_concluida("Bot excluído com sucesso."),
+            lambda _r: self._operacao_concluida("Agente excluído com sucesso."),
         )
 
     def _iniciar(self, config: dict[str, Any]) -> None:

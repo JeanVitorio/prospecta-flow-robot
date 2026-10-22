@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import random
 import time
 from datetime import datetime, timezone
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 from app_paths import data_path
 import bot_repository
 import message_repository as repositorio
 from execucao_bot import criar_logger
-from meta_cloud_api import ClienteMetaCloudAPI
+from whatsapp_gateway_client import ClienteGateway
 
 
 DIAS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
@@ -27,64 +24,13 @@ class ParadaMensageiro(Exception):
     """Indica encerramento solicitado pelo controle remoto."""
 
 
-class ClienteGateway:
-    """Cliente HTTP restrito ao gateway local iniciado pelo runner."""
-
-    def __init__(self) -> None:
-        self.url = os.getenv("WHATSAPP_GATEWAY_URL", "").rstrip("/")
-        self.token = os.getenv("WHATSAPP_GATEWAY_TOKEN", "")
-        if not self.url or not self.token:
-            raise RuntimeError("Gateway WhatsApp não foi iniciado pelo runner.")
-
-    def conectar(self, session_id: str) -> dict[str, Any]:
-        return self._post("/sessions/connect", {"session_id": session_id})
-
-    def status(self, session_id: str) -> dict[str, Any]:
-        return self._post("/sessions/status", {"session_id": session_id})
-
-    def enviar(
-        self, session_id: str, telefone: str, mensagem: str
-    ) -> dict[str, Any]:
-        return self._post(
-            "/messages/send",
-            {
-                "session_id": session_id,
-                "phone": telefone,
-                "message": mensagem,
-            },
-        )
-
-    def _post(self, caminho: str, payload: dict[str, Any]) -> dict[str, Any]:
-        request = Request(
-            f"{self.url}{caminho}",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=90) as resposta:
-                dados = json.load(resposta)
-        except HTTPError as erro:
-            try:
-                detalhe = json.load(erro).get("error", "Falha no gateway.")
-            except (ValueError, AttributeError):
-                detalhe = "Falha no gateway."
-            raise RuntimeError(str(detalhe)) from erro
-        except (URLError, TimeoutError, OSError, ValueError) as erro:
-            raise RuntimeError("Gateway WhatsApp indisponível.") from erro
-        return dados if isinstance(dados, dict) else {}
-
-
 class MensageiroWhatsApp:
     """Executa uma campanha com envio único por lead e ritmo controlado."""
 
     def __init__(self, slug: str) -> None:
         config = repositorio.carregar_config(slug)
         if not config:
-            raise RuntimeError(f"Bot de mensagens '{slug}' não encontrado.")
+            raise RuntimeError(f"Agente de WhatsApp '{slug}' não encontrado.")
         self.config = config
         self.bot_id = str(config["id"])
         self.session_id = str(config["whatsapp_session_id"])
@@ -98,16 +44,7 @@ class MensageiroWhatsApp:
             raise RuntimeError(
                 f"Provider de WhatsApp não suportado: {self.provider}."
             )
-        self.gateway = (
-            ClienteGateway()
-            if self.provider == repositorio.PROVIDER_WHATSAPP_WEB
-            else None
-        )
-        self.meta = (
-            ClienteMetaCloudAPI()
-            if self.provider == repositorio.PROVIDER_META_CLOUD_API
-            else None
-        )
+        self.gateway = ClienteGateway()
         self.fuso = ZoneInfo("America/Sao_Paulo")
         self.proxima_consulta_controle = 0.0
         self.proximo_heartbeat = 0.0
@@ -119,12 +56,8 @@ class MensageiroWhatsApp:
     def executar(self) -> None:
         self._runtime("starting")
         try:
-            if self.provider == repositorio.PROVIDER_WHATSAPP_WEB:
-                assert self.gateway is not None
-                self.gateway.conectar(self.session_id)
-                self._aguardar_conexao()
-            else:
-                self._runtime("running", last_error=None)
+            self.gateway.conectar(self.session_id)
+            self._aguardar_conexao()
             while True:
                 self._verificar_controle()
                 self._verificar_sessao()
@@ -206,18 +139,6 @@ class MensageiroWhatsApp:
             str(self.config["message_template"]), lead
         )
         try:
-            if self.provider == repositorio.PROVIDER_META_CLOUD_API:
-                assert self.meta is not None
-                self.meta.enviar(delivery_id, claim_token)
-                # A Edge Function é a única responsável pela finalização.
-                self._runtime(
-                    "running",
-                    current_lead_id=None,
-                    last_sent_at=datetime.now(timezone.utc).isoformat(),
-                    last_error=None,
-                )
-                return
-            assert self.gateway is not None
             resposta = self.gateway.enviar(
                 self.session_id, str(lead["phone"]), mensagem
             )
@@ -243,13 +164,12 @@ class MensageiroWhatsApp:
                 last_error=None,
             )
         except Exception as erro:
-            if self.provider == repositorio.PROVIDER_WHATSAPP_WEB:
-                repositorio.finalizar_entrega(
-                    delivery_id,
-                    claim_token,
-                    "failed",
-                    type(erro).__name__,
-                )
+            repositorio.finalizar_entrega(
+                delivery_id,
+                claim_token,
+                "failed",
+                type(erro).__name__,
+            )
             self._runtime(
                 "running",
                 current_lead_id=None,
@@ -280,11 +200,8 @@ class MensageiroWhatsApp:
                 raise ParadaMensageiro()
 
     def _verificar_sessao(self) -> None:
-        if self.provider != repositorio.PROVIDER_WHATSAPP_WEB:
-            return
         if time.monotonic() < self.proximo_status_sessao:
             return
-        assert self.gateway is not None
         estado = self.gateway.status(self.session_id)
         self._sincronizar_sessao(estado, forcar=True)
         self.proximo_status_sessao = time.monotonic() + 60
@@ -383,6 +300,6 @@ def executar_mensageiro(slug: str) -> None:
         MensageiroWhatsApp(slug).executar()
     except bot_repository.ErroPersistencia:
         logging.getLogger("mensageiro_whatsapp").exception(
-            "Supabase indisponível para o bot de mensagens."
+            "Supabase indisponível para o agente de WhatsApp."
         )
         raise

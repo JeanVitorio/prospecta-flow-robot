@@ -1,4 +1,4 @@
-"""Persistência dos bots de mensagens no Supabase."""
+"""Persistência dos agentes de WhatsApp no Supabase."""
 
 from __future__ import annotations
 
@@ -9,11 +9,7 @@ from uuid import UUID
 import bot_repository
 
 PROVIDER_WHATSAPP_WEB = "whatsapp_web"
-PROVIDER_META_CLOUD_API = "meta_cloud_api"
-PROVIDERS_SUPORTADOS = {
-    PROVIDER_WHATSAPP_WEB,
-    PROVIDER_META_CLOUD_API,
-}
+PROVIDERS_SUPORTADOS = {PROVIDER_WHATSAPP_WEB}
 
 
 def _executar(acao: str, chamada: Callable[[], Any]) -> Any:
@@ -27,7 +23,7 @@ def _executar(acao: str, chamada: Callable[[], Any]) -> Any:
 
 def listar_comandos_runner(runner_id: str) -> list[dict[str, Any]]:
     dados = _executar(
-        "listar os comandos dos bots de mensagens",
+        "listar os comandos dos agentes de WhatsApp",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_controls")
         .select("*")
@@ -63,7 +59,7 @@ def _consultar_config(
     campo: str, referencia: str, select: str
 ) -> list[dict[str, Any]]:
     dados = _executar(
-        "carregar a configuração do bot de mensagens",
+        "carregar a configuração do agente de WhatsApp",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_configs")
         .select(select)
@@ -92,7 +88,7 @@ def obter_provider(config: dict[str, Any]) -> str:
 
 def ler_comando(bot_id: str) -> dict[str, Any] | None:
     dados = _executar(
-        "ler o comando do bot de mensagens",
+        "ler o comando do agente de WhatsApp",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_controls")
         .select("*")
@@ -105,7 +101,7 @@ def ler_comando(bot_id: str) -> dict[str, Any] | None:
 
 def confirmar_comando(bot_id: str, request_id: str) -> None:
     _executar(
-        "confirmar o comando do bot de mensagens",
+        "confirmar o comando do agente de WhatsApp",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_controls")
         .update({"acknowledged_at": _agora()})
@@ -118,7 +114,7 @@ def confirmar_comando(bot_id: str, request_id: str) -> None:
 def atualizar_runtime(bot_id: str, dados: dict[str, Any]) -> None:
     payload = {"bot_id": bot_id, **dados}
     _executar(
-        "atualizar o runtime do bot de mensagens",
+        "atualizar o runtime do agente de WhatsApp",
         lambda: bot_repository.obter_cliente()
         .table("prospecta_message_bot_runtime")
         .upsert(payload, on_conflict="bot_id")
@@ -136,6 +132,25 @@ def atualizar_sessao(session_id: str, dados: dict[str, Any]) -> None:
         .is_("deleted_at", "null")
         .execute(),
     )
+
+
+def listar_sessoes_runner(runner_id: str) -> list[dict[str, Any]]:
+    """Sessões já autenticadas neste executor (o login fica salvo localmente)."""
+    dados = _executar(
+        "listar as sessões do WhatsApp",
+        lambda: bot_repository.obter_cliente()
+        .table("prospecta_whatsapp_sessions")
+        .select("*")
+        .eq("runner_id", runner_id)
+        .is_("deleted_at", "null")
+        .order("updated_at", desc=True)
+        .execute(),
+    )
+    return [
+        dict(sessao)
+        for sessao in dados or []
+        if obter_provider(sessao) == PROVIDER_WHATSAPP_WEB
+    ]
 
 
 def claim_lead(bot_id: str, runner_id: str) -> dict[str, Any] | None:

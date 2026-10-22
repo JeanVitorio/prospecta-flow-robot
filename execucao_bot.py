@@ -335,7 +335,7 @@ class ControleExecucao:
             raise ParadaSolicitada()
         if comando != "pausado":
             return
-        self.log.info("Execução pausada pelo controle do bot.")
+        self.log.info("Execução pausada pelo controle do agente.")
         self.checkpoint.salvar("paused")
         self.checkpoint.registrar_evento(
             "execucao_pausada", "Execução pausada pelo controle remoto."
