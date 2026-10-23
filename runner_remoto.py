@@ -8,7 +8,7 @@ import platform
 import socket
 import time
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import bot_config
 import bot_repository
@@ -64,13 +64,16 @@ class RunnerRemoto:
             while True:
                 intervalo = 10
                 try:
-                    self._atualizar_identidade()
+                    self._etapa(self._atualizar_identidade)
                     agora = time.monotonic()
-                    if agora >= proximo_heartbeat:
-                        self._registrar("online")
+                    if agora >= proximo_heartbeat and self._etapa(
+                        self._registrar, "online"
+                    ):
                         proximo_heartbeat = agora + 60
-                    self._processar_comandos()
-                    self._processar_comandos_mensagens()
+                    # Cada etapa é isolada: uma tabela sem acesso não pode
+                    # impedir o QR Code de validação nem as atualizações.
+                    self._etapa(self._processar_comandos)
+                    self._etapa(self._processar_comandos_mensagens)
                     # O QR Code muda a cada ~20s; acelera o ciclo enquanto aguarda leitura.
                     if self.gateway_ativo and self.validacao.sincronizar(
                         self.runner_id
@@ -101,6 +104,16 @@ class RunnerRemoto:
                 self._registrar("offline")
             except bot_repository.ErroPersistencia:
                 pass
+
+    @staticmethod
+    def _etapa(funcao: Callable[..., Any], *args: Any) -> bool:
+        """Executa uma etapa do ciclo e informa se ela terminou sem falha."""
+        try:
+            funcao(*args)
+            return True
+        except bot_repository.ErroPersistencia as erro:
+            LOG.warning("Supabase indisponível; nova tentativa em breve: %s", erro)
+            return False
 
     def _atualizar_identidade(self) -> None:
         usuario_id = usuario_sessao()
