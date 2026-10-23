@@ -33,6 +33,8 @@ _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _COMANDO = re.compile(r"^[a-z][a-z0-9_-]{0,49}$")
 _FILTROS_PRESENCA = {"any", "with", "without"}
 _MENSAGEM_INICIAL_PADRAO = "Olá, tudo bem com você?"
+# Mesmo teto da constraint prospecta_bot_configs_max_leads_valid.
+LIMITE_LEADS_MAXIMO = 100000
 
 
 def pasta_bot(slug: str):
@@ -271,6 +273,17 @@ def validar_config(config: dict[str, Any]) -> dict[str, Any]:
         dados.get("minimo_avaliacoes", 0), "Mínimo de avaliações", 0
     )
     dados["max_scrolls"] = _inteiro(dados.get("max_scrolls", 10), "Máximo de rolagens", 1)
+    # Limite de leads do agente; None = sem limite.
+    if dados.get("limite_leads") is not None:
+        dados["limite_leads"] = _inteiro(
+            dados["limite_leads"], "Limite de leads", 1
+        )
+        if dados["limite_leads"] > LIMITE_LEADS_MAXIMO:
+            raise ErroValidacao(
+                f"Limite de leads deve ser no máximo {LIMITE_LEADS_MAXIMO}."
+            )
+    else:
+        dados["limite_leads"] = None
     dados["ticket_estimado"] = _ticket(dados.get("ticket_estimado"))
     if not isinstance(dados.get("headless", True), bool):
         raise ErroValidacao("Headless deve ser verdadeiro ou falso.")

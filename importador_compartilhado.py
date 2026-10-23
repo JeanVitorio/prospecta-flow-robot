@@ -145,6 +145,8 @@ class Importador:
         self.estado.setdefault("lote_csv_processado", 0)
         self.estado.setdefault("limite_leads_atingido", False)
         self.estado.setdefault("proxima_verificacao_quota", 0.0)
+        # Recalculado a cada lote: o limite pode ter sido aumentado na edição.
+        self.estado["limite_agente_atingido"] = False
 
     def _monitorar(self) -> None:
         while True:
@@ -209,6 +211,8 @@ class Importador:
                             lote_disponivel,
                             falhas,
                         )
+                    if self.estado.get("limite_agente_atingido"):
+                        self._encerrar_por_limite_agente()
                     self.checkpoint.salvar("running")
                     if inseridos:
                         self.log.info(
@@ -234,6 +238,7 @@ class Importador:
         inseridos = 0
         falhas = 0
         limite_atingido = False
+        self.estado["limite_agente_atingido"] = False
         with self.csv_path.open(
             newline="", encoding="utf-8-sig"
         ) as arquivo:
@@ -290,8 +295,11 @@ class Importador:
                                 int(self.estado["leads_importados"]) + 1
                             ),
                         )
-                if bool(resultado.get("limit_reached")):
-                    limite_atingido = True
+                limite_agente = bool(resultado.get("bot_limit_reached"))
+                if bool(resultado.get("limit_reached")) or limite_agente:
+                    limite_atingido = bool(resultado.get("limit_reached"))
+                    self.estado["limite_agente_atingido"] = limite_agente
+                    # Os não gravados ficam pendentes para quando o limite subir.
                     falhas += len(pendentes) - inicio - len(
                         chaves_processadas
                     )
@@ -320,10 +328,34 @@ class Importador:
                     "importados": inseridos,
                     "falhas": falhas,
                     "limite_atingido": limite_atingido,
+                    "limite_agente_atingido": bool(
+                        self.estado.get("limite_agente_atingido")
+                    ),
                 },
                 "warning" if falhas or limite_atingido else "info",
             )
         return inseridos, falhas, limite_atingido
+
+    def _encerrar_por_limite_agente(self) -> None:
+        """Para scraper e importador quando o agente atinge seu limite de leads."""
+        limite = self.config.get("limite_leads")
+        self.estado["atividade_atual"] = (
+            f"Limite de {limite} leads do agente atingido"
+            if limite
+            else "Limite de leads do agente atingido"
+        )
+        self.log.info("%s; encerrando o agente.", self.estado["atividade_atual"])
+        self.checkpoint.registrar_evento(
+            "limite_agente_atingido",
+            self.estado["atividade_atual"],
+            {"limite_leads": limite},
+        )
+        try:
+            bot_config.definir_comando(self.slug, "parado")
+        except Exception as erro:
+            self.log.warning(
+                "Não foi possível registrar a parada por limite: %s", erro
+            )
 
     def _filtrar_whatsapp(
         self,

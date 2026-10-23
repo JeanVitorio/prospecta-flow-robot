@@ -33,6 +33,7 @@ _COLUNAS_PARA_APP = {
     "estimated_ticket": "ticket_estimado",
     "website_filter": "filtro_site",
     "phone_filter": "filtro_telefone",
+    "max_leads": "limite_leads",
     "excluded_words": "palavras_excluidas",
     "excluded_words_enabled": "filtro_palavras_excluidas_ativo",
     "included_words": "palavras_incluidas",

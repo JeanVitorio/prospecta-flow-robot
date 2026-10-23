@@ -16,6 +16,12 @@ class JanelaBot(tk.Toplevel):
 
     MENSAGEM_INICIAL_PADRAO = "Olá, tudo bem com você?"
 
+    # Mesma faixa da barra de limite de leads da web.
+    LIMITE_LEADS_MINIMO = 10
+    LIMITE_LEADS_MAXIMO = 2000
+    LIMITE_LEADS_PASSO = 10
+    LIMITE_LEADS_PADRAO = 100
+
     OPCOES_PRESENCA = {
         "Com ou sem": "any",
         "Somente com": "with",
@@ -68,6 +74,15 @@ class JanelaBot(tk.Toplevel):
         self._filtro_incluidas = tk.BooleanVar(
             value=self._config.get("filtro_palavras_incluidas_ativo", True)
         )
+        # Agente novo começa limitado; existente sem limite continua sem limite.
+        limite_atual = self._config.get("limite_leads")
+        self._limitar_leads = tk.BooleanVar(
+            value=limite_atual is not None if config else True
+        )
+        self._limite_leads = tk.IntVar(
+            value=self._ajustar_limite(limite_atual or self.LIMITE_LEADS_PADRAO)
+        )
+        self._texto_limite = tk.StringVar()
         self._montar()
 
     def _montar(self) -> None:
@@ -107,6 +122,8 @@ class JanelaBot(tk.Toplevel):
                 values=tuple(self.OPCOES_PRESENCA),
                 state="readonly",
             ).grid(row=linha, column=1, sticky="ew", pady=4)
+        linha += 1
+        self._montar_limite_leads(corpo, linha)
         for texto, variavel in (
             ("Aplicar mínimo de avaliações", self._filtro_avaliacoes),
             ("Aplicar palavras excluídas", self._filtro_excluidas),
@@ -164,6 +181,51 @@ class JanelaBot(tk.Toplevel):
         )
         self._botao_salvar.pack(side="left", padx=5)
 
+    def _montar_limite_leads(self, corpo: ttk.Frame, linha: int) -> None:
+        ttk.Label(corpo, text="Limite de leads").grid(
+            row=linha, column=0, sticky="w", padx=(0, 12), pady=4
+        )
+        quadro = ttk.Frame(corpo)
+        quadro.grid(row=linha, column=1, sticky="ew", pady=4)
+        quadro.columnconfigure(1, weight=1)
+        ttk.Checkbutton(
+            quadro,
+            text="Limitar",
+            variable=self._limitar_leads,
+            command=self._atualizar_limite,
+        ).grid(row=0, column=0, padx=(0, 8))
+        self._barra_limite = ttk.Scale(
+            quadro,
+            from_=self.LIMITE_LEADS_MINIMO,
+            to=self.LIMITE_LEADS_MAXIMO,
+            orient="horizontal",
+            command=lambda valor: self._atualizar_limite(float(valor)),
+        )
+        self._barra_limite.set(self._limite_leads.get())
+        self._barra_limite.grid(row=0, column=1, sticky="ew")
+        ttk.Label(
+            quadro, textvariable=self._texto_limite, width=12, anchor="e"
+        ).grid(row=0, column=2, padx=(8, 0))
+        self._atualizar_limite()
+
+    def _atualizar_limite(self, valor: float | None = None) -> None:
+        if valor is not None:
+            self._limite_leads.set(self._ajustar_limite(valor))
+        ativo = self._limitar_leads.get()
+        self._barra_limite.state(["!disabled"] if ativo else ["disabled"])
+        self._texto_limite.set(
+            f"{self._limite_leads.get()} leads" if ativo else "Sem limite"
+        )
+
+    @classmethod
+    def _ajustar_limite(cls, valor: float) -> int:
+        """Arredonda para o passo da barra e mantém dentro da faixa."""
+        passo = cls.LIMITE_LEADS_PASSO
+        ajustado = int(round(float(valor) / passo) * passo)
+        return min(
+            cls.LIMITE_LEADS_MAXIMO, max(cls.LIMITE_LEADS_MINIMO, ajustado)
+        )
+
     def _valor_inicial(self, chave: str) -> str:
         padroes = {
             "minimo_avaliacoes": 0,
@@ -187,6 +249,9 @@ class JanelaBot(tk.Toplevel):
             )
             dados["minimo_avaliacoes"] = int(dados["minimo_avaliacoes"])
             dados["max_scrolls"] = int(dados["max_scrolls"])
+            dados["limite_leads"] = (
+                self._limite_leads.get() if self._limitar_leads.get() else None
+            )
             dados["headless"] = self._headless.get()
             dados["filtro_site"] = self.OPCOES_PRESENCA[
                 self._filtro_site.get()
