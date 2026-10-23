@@ -8,6 +8,13 @@ from tkinter import messagebox, ttk
 from typing import Any, Callable
 from uuid import UUID
 
+from identidade_visual import (
+    FUNDO_ESCURO,
+    LARANJA,
+    LARANJA_ESCURO,
+    TEXTO_CLARO,
+    botao_destaque,
+)
 from painel_processos import caminhos_logs
 
 
@@ -167,7 +174,7 @@ class JanelaBot(tk.Toplevel):
         corpo.rowconfigure(linha, weight=1)
         linha += 1
         self._mensagem = tk.StringVar()
-        ttk.Label(corpo, textvariable=self._mensagem, foreground="#a33").grid(
+        ttk.Label(corpo, textvariable=self._mensagem, foreground=LARANJA_ESCURO).grid(
             row=linha, column=0, columnspan=2, sticky="w", pady=(8, 0)
         )
         linha += 1
@@ -176,9 +183,7 @@ class JanelaBot(tk.Toplevel):
         ttk.Button(botoes, text="Cancelar", command=self.destroy).pack(
             side="left", padx=5
         )
-        self._botao_salvar = ttk.Button(
-            botoes, text="Salvar", command=self._salvar
-        )
+        self._botao_salvar = botao_destaque(botoes, "Salvar", self._salvar)
         self._botao_salvar.pack(side="left", padx=5)
 
     def _montar_limite_leads(self, corpo: ttk.Frame, linha: int) -> None:
@@ -319,7 +324,13 @@ class JanelaLogs(tk.Toplevel):
         )
         ttk.Button(barra, text="Atualizar", command=self._atualizar).pack(side="right")
         self._texto = tk.Text(
-            self, wrap="none", state="disabled", bg="#111827", fg="#e5e7eb"
+            self,
+            wrap="none",
+            state="disabled",
+            bg=FUNDO_ESCURO,
+            fg=TEXTO_CLARO,
+            selectbackground=LARANJA,
+            insertbackground=TEXTO_CLARO,
         )
         self._texto.pack(fill="both", expand=True, padx=8, pady=(0, 8))
         self._atualizar()

@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.19"
+  #define MyAppVersion "1.0.20"
 #endif
 
 #define MyAppName "LeadFlow"
@@ -29,9 +29,9 @@ CloseApplications=yes
 CloseApplicationsFilter=ProspectaFlow.exe,node.exe,chrome.exe,chromedriver.exe
 RestartApplications=no
 UninstallDisplayIcon={app}\{#MyAppExeName}
-SetupIconFile=ProspectaFlow.ico
-WizardImageFile=installer-sidebar.bmp
-WizardSmallImageFile=installer-small.bmp
+SetupIconFile=LeadFlow.ico
+WizardImageFile=installer-sidebar.bmp,installer-sidebar-2x.bmp
+WizardSmallImageFile=installer-small.bmp,installer-small-2x.bmp
 
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"

@@ -8,6 +8,7 @@ from tkinter import ttk
 from typing import Any, Callable
 
 import bot_storage
+from identidade_visual import TEXTO_SECUNDARIO
 
 
 AcaoCard = Callable[[dict[str, Any]], None]
@@ -34,7 +35,7 @@ class CardBot(ttk.Frame):
         )
         self._titulo.grid(row=0, column=0, sticky="w")
         origem = "Supabase" if config.get("_persistencia") == "supabase" else "Cache local"
-        ttk.Label(self, text=f"Origem: {origem}", foreground="#4b5563").grid(
+        ttk.Label(self, text=f"Origem: {origem}", foreground=TEXTO_SECUNDARIO).grid(
             row=0, column=1, sticky="e"
         )
         ticket = _moeda(config.get("ticket_estimado", 0))

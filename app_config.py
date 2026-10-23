@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 from app_paths import env_path
 from dotenv import dotenv_values
+from identidade_visual import TEXTO_SECUNDARIO, aplicar_identidade, botao_destaque
 
 
 def configuracao_disponivel() -> bool:
@@ -31,6 +32,7 @@ def configurar_interativo() -> bool:
 
     raiz = tk.Tk()
     raiz.title("Configurar LeadFlow")
+    aplicar_identidade(raiz)
     raiz.geometry("620x410")
     raiz.resizable(False, False)
     corpo = ttk.Frame(raiz, padding=24)
@@ -66,7 +68,7 @@ def configurar_interativo() -> bool:
         text=(
             "As credenciais ficam somente nesta máquina, fora da pasta do aplicativo."
         ),
-        foreground="#4b5563",
+        foreground=TEXTO_SECUNDARIO,
     ).grid(row=len(campos), column=0, columnspan=2, sticky="w", pady=(12, 4))
 
     def salvar() -> None:
@@ -102,7 +104,7 @@ def configurar_interativo() -> bool:
     ttk.Button(botoes, text="Cancelar", command=raiz.destroy).pack(
         side="left", padx=6
     )
-    ttk.Button(botoes, text="Salvar", command=salvar).pack(side="left")
+    botao_destaque(botoes, "Salvar", salvar).pack(side="left")
     raiz.mainloop()
     return salvo
 

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.19",
+    [string]$Version = "1.0.20",
     [switch]$SkipAppBuild,
     [switch]$SkipChrome,
     [switch]$SkipPortable,
@@ -53,6 +53,8 @@ if (-not $SkipAppBuild) {
     Remove-Item -Recurse -Force $AppDist -ErrorAction SilentlyContinue
 
     Write-Host "Gerando aplicativo Python..."
+    # Versão gravada nos metadados do .exe (ver ProspectaFlow.spec).
+    $env:LEADFLOW_VERSION = $Version
     python -m PyInstaller `
         --noconfirm `
         --clean `

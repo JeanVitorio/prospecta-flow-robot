@@ -7,7 +7,7 @@ $ErrorActionPreference = "SilentlyContinue"
 $root = [System.IO.Path]::GetFullPath($InstallPath).TrimEnd("\") + "\"
 $currentProcessId = $PID
 
-# Encerra somente executáveis distribuídos dentro da pasta do Prospecta Flow.
+# Encerra somente executáveis distribuídos dentro da pasta do LeadFlow.
 # O /T também finaliza Chrome, ChromeDriver e Node iniciados por cada worker.
 $processes = Get-CimInstance Win32_Process | Where-Object {
     $_.ProcessId -ne $currentProcessId -and

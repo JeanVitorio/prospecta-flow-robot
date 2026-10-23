@@ -10,6 +10,7 @@ from typing import Any, Callable
 import bot_config
 import bot_repository
 from execucao_bot import bloquear_energia, liberar_energia
+from identidade_visual import TEXTO_SECUNDARIO, aplicar_identidade, botao_destaque
 from painel_cards import CardBot
 from painel_janelas import JanelaBot, JanelaLogs
 from painel_processos import GerenciadorProcessos
@@ -18,6 +19,7 @@ class PainelProspecta:
     def __init__(self, raiz: tk.Tk) -> None:
         self.raiz = raiz
         self.raiz.title("LeadFlow")
+        aplicar_identidade(self.raiz)
         self.raiz.geometry("1120x760")
         self.raiz.minsize(820, 560)
         self._fila: queue.Queue[tuple[Any, ...]] = queue.Queue()
@@ -43,7 +45,7 @@ class PainelProspecta:
         ttk.Label(topo, text="LeadFlow", style="Titulo.TLabel").pack(
             side="left"
         )
-        ttk.Button(topo, text="Novo agente", command=self._novo_bot).pack(
+        botao_destaque(topo, "Novo agente", self._novo_bot).pack(
             side="right", padx=(8, 0)
         )
         ttk.Button(topo, text="Atualizar", command=self.atualizar_lista).pack(
@@ -54,7 +56,7 @@ class PainelProspecta:
             self.raiz,
             textvariable=self._mensagem,
             padding=(22, 0, 22, 10),
-            foreground="#4b5563",
+            foreground=TEXTO_SECUNDARIO,
         ).pack(fill="x")
         exterior = ttk.Frame(self.raiz)
         exterior.pack(fill="both", expand=True, padx=20, pady=(0, 18))
