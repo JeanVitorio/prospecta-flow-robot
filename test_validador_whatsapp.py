@@ -56,10 +56,45 @@ class ValidadorWhatsAppTest(unittest.TestCase):
         self, listar: MagicMock
     ) -> None:
         self.validador.session_id = None
-        listar.return_value = [{"id": "sessao-2"}]
-        self.validador.gateway.conectar.return_value = {"status": "qr_pending"}
+        listar.return_value = [{"id": "sessao-2", "status": "qr_pending"}]
 
         self.assertIsNone(self.validador.validar("11 99999-9999"))
+        # Sessão não autenticada não é aberta pelo validador (sem QR em segundo plano).
+        self.validador.gateway.conectar.assert_not_called()
+
+    @patch.dict("os.environ", {"PROSPECTA_RUNNER_ID": "runner-1"})
+    @patch("validador_whatsapp.repositorio.listar_sessoes_runner")
+    def test_prioriza_sessao_de_validacao(self, listar: MagicMock) -> None:
+        self.validador.session_id = None
+        listar.return_value = [
+            {"id": "mensagens", "status": "ready", "purpose": "message"},
+            {"id": "validacao", "status": "ready", "purpose": "validation"},
+        ]
+        self.validador.gateway.status.return_value = {"status": "ready"}
+        self.validador.gateway.validar.return_value = {"exists": True}
+
+        self.assertTrue(self.validador.validar("11 99999-9999"))
+        self.validador.gateway.validar.assert_called_once_with(
+            "validacao", "5511999999999"
+        )
+
+    @patch.dict("os.environ", {"PROSPECTA_RUNNER_ID": "runner-1"})
+    @patch("validador_whatsapp.repositorio.listar_sessoes_runner")
+    def test_restaura_sessao_apos_gateway_reiniciar(
+        self, listar: MagicMock
+    ) -> None:
+        self.validador.session_id = None
+        listar.return_value = [
+            {"id": "validacao", "status": "ready", "purpose": "validation"}
+        ]
+        self.validador.gateway.status.side_effect = RuntimeError(
+            "Sessão ainda não foi iniciada."
+        )
+        self.validador.gateway.conectar.return_value = {"status": "ready"}
+        self.validador.gateway.validar.return_value = {"exists": False}
+
+        self.assertFalse(self.validador.validar("11 99999-9999"))
+        self.validador.gateway.conectar.assert_called_once_with("validacao")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from execucao_bot import (
     criar_logger,
     liberar_energia,
 )
-from validador_whatsapp import ValidadorWhatsApp
+from validador_whatsapp import ValidadorWhatsApp, normalizar_telefone
 
 
 class Importador:
@@ -330,19 +330,28 @@ class Importador:
         pendentes: list[tuple[dict[str, str], str]],
         respeitar_controle: bool,
     ) -> tuple[list[tuple[dict[str, str], str]], int]:
-        """Mantém só leads cujo telefone abre conversa no WhatsApp.
+        """Aplica o filtro de telefone do agente com validação no WhatsApp.
 
+        - "with": só salva leads com WhatsApp validado;
+        - "any": salva os sem telefone e, dos com telefone, só os validados;
+        - "without": salva sem validar.
         Retorna os aprovados e quantos ficaram aguardando o WhatsApp conectar.
         """
+        filtro = self.config.get("filtro_telefone", "any")
         aprovados: list[tuple[dict[str, str], str]] = []
         aguardando = 0
-        if pendentes:
+        if pendentes and filtro != "without":
             self.estado["atividade_atual"] = "Validando números no WhatsApp"
         try:
             for posicao, (row, chave) in enumerate(pendentes):
                 if respeitar_controle:
                     self.controle.verificar()
-                existe = self.validador.validar(row.get("Telefone", ""))
+                telefone = row.get("Telefone", "")
+                sem_telefone = not normalizar_telefone(telefone)
+                if filtro == "without" or (filtro == "any" and sem_telefone):
+                    aprovados.append((row, chave))
+                    continue
+                existe = self.validador.validar(telefone)
                 if existe is None:
                     aguardando = len(pendentes) - posicao
                     break

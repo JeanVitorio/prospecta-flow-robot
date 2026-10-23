@@ -24,6 +24,9 @@ class ClienteGateway:
     def status(self, session_id: str) -> dict[str, Any]:
         return self._post("/sessions/status", {"session_id": session_id})
 
+    def desconectar(self, session_id: str) -> dict[str, Any]:
+        return self._post("/sessions/logout", {"session_id": session_id})
+
     def validar(self, session_id: str, telefone: str) -> dict[str, Any]:
         return self._post(
             "/numbers/validate",

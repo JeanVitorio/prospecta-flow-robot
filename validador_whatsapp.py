@@ -12,6 +12,7 @@ from pathlib import Path
 
 import bot_repository
 import message_repository as repositorio
+from message_repository import FINALIDADE_VALIDACAO
 from whatsapp_gateway_client import ClienteGateway
 
 
@@ -93,20 +94,33 @@ class ValidadorWhatsApp:
             sessoes = repositorio.listar_sessoes_runner(runner_id)
         except bot_repository.ErroPersistencia:
             return False
-        for sessao in sessoes:
+        # Só usa sessões já autenticadas; a de validação tem prioridade.
+        conectadas = sorted(
+            (sessao for sessao in sessoes if sessao.get("status") == "ready"),
+            key=lambda sessao: sessao.get("purpose") != FINALIDADE_VALIDACAO,
+        )
+        for sessao in conectadas:
             session_id = str(sessao.get("id") or "")
-            try:
-                estado = self.gateway.conectar(session_id)
-            except RuntimeError:
-                continue
-            if estado.get("status") == "ready":
+            if self._sessao_pronta(session_id):
                 self.session_id = session_id
                 return True
         self.log.warning(
-            "Nenhum WhatsApp conectado neste executor; "
-            "conecte um agente de WhatsApp para validar os números."
+            "Nenhum WhatsApp conectado neste PC; conecte o WhatsApp de "
+            "validação na página Agentes de Prospecção."
         )
         return False
+
+    def _sessao_pronta(self, session_id: str) -> bool:
+        assert self.gateway is not None
+        try:
+            estado = self.gateway.status(session_id)
+        except RuntimeError:
+            # Gateway reiniciado: o login salvo é restaurado sem novo QR Code.
+            try:
+                estado = self.gateway.conectar(session_id)
+            except RuntimeError:
+                return False
+        return estado.get("status") == "ready"
 
     def _carregar_cache(self) -> dict[str, bool]:
         try:

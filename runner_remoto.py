@@ -16,6 +16,7 @@ import message_repository
 from atualizador import Atualizador
 from app_session import usuario_sessao
 from painel_processos import GerenciadorProcessos
+from sincronizador_validacao import SincronizadorValidacao
 from whatsapp_gateway_process import GatewayWhatsApp
 
 LOG = logging.getLogger("prospecta_runner")
@@ -50,6 +51,7 @@ class RunnerRemoto:
         self._requisicoes_confirmadas: set[str] = set()
         self.gateway = GatewayWhatsApp(LOG)
         self.gateway_ativo = False
+        self.validacao = SincronizadorValidacao(LOG)
         self.atualizador = Atualizador(LOG)
         self._instalador_pendente = None
 
@@ -60,6 +62,7 @@ class RunnerRemoto:
         proximo_heartbeat = 0.0
         try:
             while True:
+                intervalo = 10
                 try:
                     self._atualizar_identidade()
                     agora = time.monotonic()
@@ -68,6 +71,11 @@ class RunnerRemoto:
                         proximo_heartbeat = agora + 60
                     self._processar_comandos()
                     self._processar_comandos_mensagens()
+                    # O QR Code muda a cada ~20s; acelera o ciclo enquanto aguarda leitura.
+                    if self.gateway_ativo and self.validacao.sincronizar(
+                        self.runner_id
+                    ):
+                        intervalo = 2
                     self.processos.limpar_finalizados()
                     self._instalador_pendente = (
                         self._instalador_pendente
@@ -84,7 +92,7 @@ class RunnerRemoto:
                         return
                 except bot_repository.ErroPersistencia as erro:
                     LOG.warning("Supabase indisponível; nova tentativa em breve: %s", erro)
-                time.sleep(10)
+                time.sleep(intervalo)
         except KeyboardInterrupt:
             LOG.info("Encerramento do executor solicitado.")
         finally:

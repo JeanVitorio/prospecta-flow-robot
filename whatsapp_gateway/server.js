@@ -177,6 +177,18 @@ async function route(request, response) {
   }
 
   const state = sessions.get(sessionId);
+  if (request.url === "/sessions/logout") {
+    // Encerra a sessão e apaga o login salvo para permitir conectar outro número.
+    if (state) {
+      sessions.delete(sessionId);
+      if (state.status === "ready") {
+        await state.client.logout().catch(() => undefined);
+      }
+      await state.client.destroy().catch(() => undefined);
+    }
+    respond(response, 200, { status: "disconnected" });
+    return;
+  }
   if (!state) {
     respond(response, 409, { error: "Sessão ainda não foi iniciada." });
     return;
