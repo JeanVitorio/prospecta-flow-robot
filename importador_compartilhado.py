@@ -22,7 +22,6 @@ from execucao_bot import (
     criar_logger,
     liberar_energia,
 )
-from validador_whatsapp import ValidadorWhatsApp, normalizar_telefone
 
 
 class Importador:
@@ -48,8 +47,6 @@ class Importador:
         self.existentes: set[str] | None = None
         self.estado: dict[str, Any] = {}
         self.checkpoint_adquirido = False
-        self.validador = ValidadorWhatsApp(self.pasta, self.log)
-        self.descartados: set[str] = set()
 
     def executar(self) -> None:
         bot_config.registrar_runtime(self.slug, processo="importador")
@@ -135,8 +132,6 @@ class Importador:
         self.estado.setdefault("leads_lidos", 0)
         self.estado.setdefault("leads_importados", 0)
         self.estado.setdefault("falhas_importacao", 0)
-        self.estado.setdefault("leads_sem_whatsapp", 0)
-        self.estado.setdefault("aguardando_whatsapp", False)
         if "falhas_pendentes" not in self.estado:
             self.estado["falhas_pendentes"] = int(
                 self.estado["falhas_importacao"]
@@ -198,10 +193,6 @@ class Importador:
                         self.log.warning(
                             "Importação pausada porque o limite mensal foi atingido."
                         )
-                    elif self.estado.get("aguardando_whatsapp"):
-                        self.estado["atividade_atual"] = (
-                            "Aguardando WhatsApp conectado para validar números"
-                        )
                     else:
                         self.estado["atividade_atual"] = (
                             "Falha ao importar leads; nova tentativa agendada"
@@ -255,11 +246,6 @@ class Importador:
                     continue
                 pendentes.append((row, chave))
                 chaves_pendentes.add(chave)
-
-        pendentes, aguardando = self._filtrar_whatsapp(
-            pendentes, respeitar_controle
-        )
-        falhas += aguardando
 
         for inicio in range(0, len(pendentes), 100):
             if respeitar_controle:
@@ -356,57 +342,6 @@ class Importador:
             self.log.warning(
                 "Não foi possível registrar a parada por limite: %s", erro
             )
-
-    def _filtrar_whatsapp(
-        self,
-        pendentes: list[tuple[dict[str, str], str]],
-        respeitar_controle: bool,
-    ) -> tuple[list[tuple[dict[str, str], str]], int]:
-        """Aplica o filtro de telefone do agente com validação no WhatsApp.
-
-        - "with": só salva leads com WhatsApp validado;
-        - "any": salva os sem telefone e, dos com telefone, só os validados;
-        - "without": salva sem validar.
-        Retorna os aprovados e quantos ficaram aguardando o WhatsApp conectar.
-        """
-        filtro = self.config.get("filtro_telefone", "any")
-        aprovados: list[tuple[dict[str, str], str]] = []
-        aguardando = 0
-        if pendentes and filtro != "without":
-            self.estado["atividade_atual"] = "Validando números no WhatsApp"
-        try:
-            for posicao, (row, chave) in enumerate(pendentes):
-                if respeitar_controle:
-                    self.controle.verificar()
-                telefone = row.get("Telefone", "")
-                sem_telefone = not normalizar_telefone(telefone)
-                if filtro == "without" or (filtro == "any" and sem_telefone):
-                    aprovados.append((row, chave))
-                    continue
-                existe = self.validador.validar(telefone)
-                if existe is None:
-                    aguardando = len(pendentes) - posicao
-                    break
-                if existe:
-                    aprovados.append((row, chave))
-                elif chave not in self.descartados:
-                    self.descartados.add(chave)
-                    self.estado["leads_sem_whatsapp"] = (
-                        int(self.estado["leads_sem_whatsapp"]) + 1
-                    )
-                    self.log.info(
-                        "Lead descartado (número sem WhatsApp): %s",
-                        row.get("Nome", "").strip(),
-                    )
-        finally:
-            self.validador.salvar_cache()
-        self.estado["aguardando_whatsapp"] = aguardando > 0
-        if aguardando:
-            self.log.warning(
-                "%s lead(s) aguardando WhatsApp conectado para validação.",
-                aguardando,
-            )
-        return aprovados, aguardando
 
     def _carregar_existentes(self) -> set[str]:
         if self.existentes is not None:

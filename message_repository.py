@@ -10,8 +10,6 @@ import bot_repository
 
 PROVIDER_WHATSAPP_WEB = "whatsapp_web"
 PROVIDERS_SUPORTADOS = {PROVIDER_WHATSAPP_WEB}
-# Sessões de validação existem para todos os usuários; as de mensagem são restritas.
-FINALIDADE_VALIDACAO = "validation"
 
 
 def _executar(acao: str, chamada: Callable[[], Any]) -> Any:
@@ -134,42 +132,6 @@ def atualizar_sessao(session_id: str, dados: dict[str, Any]) -> None:
         .is_("deleted_at", "null")
         .execute(),
     )
-
-
-def listar_sessoes_runner(runner_id: str) -> list[dict[str, Any]]:
-    """Sessões já autenticadas neste executor (o login fica salvo localmente)."""
-    dados = _executar(
-        "listar as sessões do WhatsApp",
-        lambda: bot_repository.obter_cliente()
-        .table("prospecta_whatsapp_sessions")
-        .select("*")
-        .eq("runner_id", runner_id)
-        .is_("deleted_at", "null")
-        .order("updated_at", desc=True)
-        .execute(),
-    )
-    return [
-        dict(sessao)
-        for sessao in dados or []
-        if obter_provider(sessao) == PROVIDER_WHATSAPP_WEB
-    ]
-
-
-def listar_sessoes_validacao(runner_id: str) -> list[dict[str, Any]]:
-    """Sessões usadas só para conferir números dos leads neste executor."""
-    dados = _executar(
-        "listar as sessões de validação do WhatsApp",
-        lambda: bot_repository.obter_cliente()
-        .table("prospecta_whatsapp_sessions")
-        .select(
-            "id, status, connected_number, qr_code_data_url, last_error"
-        )
-        .eq("runner_id", runner_id)
-        .eq("purpose", FINALIDADE_VALIDACAO)
-        .is_("deleted_at", "null")
-        .execute(),
-    )
-    return [dict(sessao) for sessao in dados or []]
 
 
 def claim_lead(bot_id: str, runner_id: str) -> dict[str, Any] | None:

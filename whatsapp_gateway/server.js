@@ -208,14 +208,6 @@ async function route(request, response) {
     return;
   }
 
-  if (request.url === "/numbers/validate") {
-    const numberId = await enqueue(state, () => state.client.getNumberId(phone));
-    respond(response, 200, {
-      exists: Boolean(numberId),
-      whatsapp_id: numberId?._serialized || null,
-    });
-    return;
-  }
   if (request.url === "/messages/send") {
     const message = String(body.message || "").trim();
     if (!message || message.length > 4000) {

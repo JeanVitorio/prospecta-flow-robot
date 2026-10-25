@@ -33,13 +33,10 @@ def importador(pasta: Path, nomes: list[str]) -> Importador:
         "leads_lidos": 0,
         "leads_importados": 0,
         "falhas_importacao": 0,
-        "leads_sem_whatsapp": 0,
     }
     objeto.existentes = set()
-    objeto.descartados = set()
     objeto.controle = MagicMock()
     objeto.checkpoint = MagicMock()
-    objeto.validador = MagicMock()
     objeto.log = logging.getLogger("teste_limite_leads")
     return objeto
 

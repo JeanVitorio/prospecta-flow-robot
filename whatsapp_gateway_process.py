@@ -37,7 +37,7 @@ class GatewayWhatsApp:
         )
         if not node:
             self.log.error(
-                "Node.js não encontrado; agentes de WhatsApp e validação de números permanecerão indisponíveis."
+                "Node.js não encontrado; agentes de WhatsApp permanecerão indisponíveis."
             )
             return False
         if not (self.pasta / "node_modules").exists():

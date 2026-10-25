@@ -15,8 +15,6 @@ def runner_falhando_mensagens() -> RunnerRemoto:
     runner.ambiente = "local"
     runner.gateway = MagicMock()
     runner.gateway.iniciar.return_value = True
-    runner.validacao = MagicMock()
-    runner.validacao.sincronizar.return_value = False
     runner.processos = MagicMock()
     runner.atualizador = MagicMock()
     runner.atualizador.check_if_due.return_value = None
@@ -32,11 +30,10 @@ def runner_falhando_mensagens() -> RunnerRemoto:
 
 
 class CicloRunnerTest(unittest.TestCase):
-    def test_falha_nos_comandos_de_mensagem_nao_bloqueia_validacao(self) -> None:
+    def test_falha_nos_comandos_de_mensagem_nao_bloqueia_o_ciclo(self) -> None:
         runner = runner_falhando_mensagens()
         with patch("runner_remoto.time.sleep", side_effect=KeyboardInterrupt):
             runner.executar()
-        runner.validacao.sincronizar.assert_called_once_with("usuario:PC")
         runner.atualizador.check_if_due.assert_called_once()
         runner.processos.limpar_finalizados.assert_called_once()
 

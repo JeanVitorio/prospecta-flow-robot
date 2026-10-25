@@ -16,7 +16,6 @@ import message_repository
 from atualizador import Atualizador
 from app_session import usuario_sessao
 from painel_processos import GerenciadorProcessos
-from sincronizador_validacao import SincronizadorValidacao
 from whatsapp_gateway_process import GatewayWhatsApp
 
 LOG = logging.getLogger("prospecta_runner")
@@ -51,7 +50,6 @@ class RunnerRemoto:
         self._requisicoes_confirmadas: set[str] = set()
         self.gateway = GatewayWhatsApp(LOG)
         self.gateway_ativo = False
-        self.validacao = SincronizadorValidacao(LOG)
         self.atualizador = Atualizador(LOG)
         self._instalador_pendente = None
 
@@ -71,14 +69,9 @@ class RunnerRemoto:
                     ):
                         proximo_heartbeat = agora + 60
                     # Cada etapa é isolada: uma tabela sem acesso não pode
-                    # impedir o QR Code de validação nem as atualizações.
+                    # impedir as demais etapas nem as atualizações.
                     self._etapa(self._processar_comandos)
                     self._etapa(self._processar_comandos_mensagens)
-                    # O QR Code muda a cada ~20s; acelera o ciclo enquanto aguarda leitura.
-                    if self.gateway_ativo and self.validacao.sincronizar(
-                        self.runner_id
-                    ):
-                        intervalo = 2
                     self.processos.limpar_finalizados()
                     self._instalador_pendente = (
                         self._instalador_pendente
