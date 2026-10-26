@@ -8,13 +8,22 @@ import multiprocessing
 import os
 import sys
 
-from app_paths import configure_bundled_runtime, data_path, env_path
+from logging.handlers import RotatingFileHandler
+
+import log_remoto
+from app_paths import (
+    configure_bundled_runtime,
+    configure_temp_dir,
+    data_path,
+    env_path,
+)
 from app_version import __version__
 from dotenv import load_dotenv
 
 
 def main(argv: list[str] | None = None) -> int:
     multiprocessing.freeze_support()
+    configure_temp_dir()
     configure_bundled_runtime()
     load_dotenv(env_path(), override=False)
     _configure_logging()
@@ -75,13 +84,21 @@ def _configure_logging() -> None:
         and os.path.abspath(handler.baseFilename) == os.path.abspath(log_path)
         for handler in root.handlers
     ):
-        handler = logging.FileHandler(log_path, encoding="utf-8")
+        # Arquivo limitado (3 x 5 MB) para o log não encher o disco.
+        handler = RotatingFileHandler(
+            log_path,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+            delay=True,
+        )
         handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
             )
         )
         root.addHandler(handler)
+    log_remoto.instalar()
 
 
 if __name__ == "__main__":

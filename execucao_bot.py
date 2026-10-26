@@ -9,11 +9,13 @@ import platform
 import threading
 import time
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 import bot_config
+import log_remoto
 import bot_repository as remoto
 import bot_storage as local
 
@@ -38,10 +40,20 @@ def criar_logger(nome: str, caminho: Path) -> logging.Logger:
     )
     for handler in (
         logging.StreamHandler(),
-        logging.FileHandler(caminho, encoding="utf-8"),
+        RotatingFileHandler(
+            caminho,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=2,
+            encoding="utf-8",
+            delay=True,
+        ),
     ):
         handler.setFormatter(formato)
         logger.addHandler(handler)
+    # Este logger não propaga ao raiz: liga o envio ao banco diretamente.
+    remoto = log_remoto.handler_ativo()
+    if remoto is not None:
+        logger.addHandler(remoto)
     return logger
 
 
