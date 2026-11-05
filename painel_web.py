@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import os
 import subprocess
@@ -13,8 +14,9 @@ from urllib.parse import urlsplit
 from app_version import __version__
 from atualizador import Atualizador
 from app_paths import data_path, install_root, is_frozen, resource_path
-from app_session import salvar_sessao
+from app_session import carregar_sessao, salvar_sessao
 from execucao_bot import bloquear_energia, liberar_energia
+from runner_remoto import MUTEX_NAME
 
 
 WEB_APP_URL = os.getenv(
@@ -22,6 +24,8 @@ WEB_APP_URL = os.getenv(
     "https://jvstech.com.br/LeadFlow/",
 ).strip()
 LOG = logging.getLogger("prospecta_painel_web")
+SYNCHRONIZE = 0x00100000
+INTERVALO_SUPERVISAO = 20
 
 
 class ApiAtualizacao:
@@ -140,6 +144,34 @@ def _garantir_runner() -> None:
         )
 
 
+def _runner_ativo() -> bool:
+    """Indica se o Runner já está rodando, pela trava global do Windows."""
+    if os.name != "nt":
+        return False
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenMutexW.argtypes = (ctypes.c_ulong, ctypes.c_bool, ctypes.c_wchar_p)
+    kernel32.OpenMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    handle = kernel32.OpenMutexW(SYNCHRONIZE, False, MUTEX_NAME)
+    if not handle:
+        return False
+    kernel32.CloseHandle(handle)
+    return True
+
+
+def _supervisionar_runner(parar: threading.Event) -> None:
+    """Com o painel aberto, o executor fica sempre de pé para a Web enxergar o PC."""
+    while True:
+        try:
+            if carregar_sessao() and not _runner_ativo():
+                LOG.info("Executor fora do ar; iniciando pelo painel.")
+                _garantir_runner()
+        except Exception as erro:
+            LOG.warning("Não foi possível supervisionar o executor: %s", erro)
+        if parar.wait(INTERVALO_SUPERVISAO):
+            return
+
+
 def main() -> None:
     if not WEB_APP_URL.startswith("https://"):
         raise RuntimeError(
@@ -147,6 +179,13 @@ def main() -> None:
         )
 
     bloquear_energia()
+    parar_supervisao = threading.Event()
+    threading.Thread(
+        target=_supervisionar_runner,
+        args=(parar_supervisao,),
+        name="supervisor-runner",
+        daemon=True,
+    ).start()
     try:
         import webview
 
@@ -166,6 +205,7 @@ def main() -> None:
             storage_path=str(data_path("webview")),
         )
     finally:
+        parar_supervisao.set()
         liberar_energia()
 
 

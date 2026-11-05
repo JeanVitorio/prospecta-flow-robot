@@ -75,15 +75,6 @@ def obter_cliente() -> Any:
 
             cliente = create_client(url, chave)
             if sessao:
-                autenticacao = cliente.auth.refresh_session(
-                    str(sessao["refresh_token"])
-                )
-                if not autenticacao.session:
-                    raise RuntimeError("Sessão Supabase não renovada.")
-                cliente.auth.set_session(
-                    autenticacao.session.access_token,
-                    autenticacao.session.refresh_token,
-                )
                 def persistir_sessao(
                     _evento: Any, sessao_atualizada: Any
                 ) -> None:
@@ -102,7 +93,7 @@ def obter_cliente() -> Any:
                         }
                     )
 
-                persistir_sessao("", autenticacao.session)
+                _conectar_sessao(cliente, sessao, persistir_sessao)
                 cliente.auth.on_auth_state_change(persistir_sessao)
         except Exception as erro:
             raise ErroPersistencia(
@@ -112,6 +103,36 @@ def obter_cliente() -> Any:
         # 401 em todas as chamadas até o aplicativo ser reiniciado.
         _cliente = cliente
     return _cliente
+
+
+def _conectar_sessao(
+    cliente: Any, sessao: dict[str, str], persistir: Any
+) -> None:
+    """Conecta usando o login salvo pelo painel.
+
+    O painel e o executor usam o mesmo login. Quando a Web renova o acesso
+    primeiro, o código de renovação guardado aqui deixa de valer; nesse caso
+    seguimos com o acesso atual, que o painel mantém atualizado em disco.
+    """
+    try:
+        autenticacao = cliente.auth.refresh_session(
+            str(sessao["refresh_token"])
+        )
+        if not autenticacao.session:
+            raise RuntimeError("Sessão Supabase não renovada.")
+    except Exception:
+        cliente.auth.set_session(
+            str(sessao["access_token"]), str(sessao["refresh_token"])
+        )
+        usuario = cliente.auth.get_user()
+        if not getattr(usuario, "user", None):
+            raise
+        return
+    cliente.auth.set_session(
+        autenticacao.session.access_token,
+        autenticacao.session.refresh_token,
+    )
+    persistir("", autenticacao.session)
 
 
 def descartar_cliente() -> None:

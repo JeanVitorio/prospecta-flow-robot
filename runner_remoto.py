@@ -6,6 +6,7 @@ import ctypes
 import os
 import platform
 import socket
+import threading
 import time
 import logging
 from typing import Any, Callable
@@ -21,6 +22,9 @@ from whatsapp_gateway_process import GatewayWhatsApp
 LOG = logging.getLogger("prospecta_runner")
 MUTEX_NAME = r"Local\ProspectaFlow.Runner"
 ERROR_ALREADY_EXISTS = 183
+# A Web considera o PC online com batidas recentes: o sinal vai em uma thread
+# própria para nenhuma consulta lenta deixar o computador sumir da lista.
+INTERVALO_HEARTBEAT = 30
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
@@ -57,17 +61,18 @@ class RunnerRemoto:
         os.environ["PROSPECTA_RUNNER_ID"] = self.runner_id
         os.environ["PROSPECTA_RUNNER_ENV"] = self.ambiente
         self.gateway_ativo = self.gateway.iniciar()
-        proximo_heartbeat = 0.0
+        parar_heartbeat = threading.Event()
+        threading.Thread(
+            target=self._ciclo_heartbeat,
+            args=(parar_heartbeat,),
+            name="heartbeat-runner",
+            daemon=True,
+        ).start()
         try:
             while True:
                 intervalo = 10
                 try:
                     self._etapa(self._atualizar_identidade)
-                    agora = time.monotonic()
-                    if agora >= proximo_heartbeat and self._etapa(
-                        self._registrar, "online"
-                    ):
-                        proximo_heartbeat = agora + 60
                     # Cada etapa é isolada: uma tabela sem acesso não pode
                     # impedir as demais etapas nem as atualizações.
                     self._etapa(self._processar_comandos)
@@ -92,11 +97,19 @@ class RunnerRemoto:
         except KeyboardInterrupt:
             LOG.info("Encerramento do executor solicitado.")
         finally:
+            parar_heartbeat.set()
             self.gateway.parar()
             try:
                 self._registrar("offline")
             except bot_repository.ErroPersistencia:
                 pass
+
+    def _ciclo_heartbeat(self, parar: threading.Event) -> None:
+        """Avisa a Web, sem parar, que este PC está disponível."""
+        while True:
+            self._etapa(self._registrar, "online")
+            if parar.wait(INTERVALO_HEARTBEAT):
+                return
 
     @staticmethod
     def _etapa(funcao: Callable[..., Any], *args: Any) -> bool:
