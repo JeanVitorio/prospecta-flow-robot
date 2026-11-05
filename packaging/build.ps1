@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.25",
+    [string]$Version = "1.0.26",
     [switch]$SkipAppBuild,
     [switch]$SkipChrome,
     [switch]$SkipPortable,

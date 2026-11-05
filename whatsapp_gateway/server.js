@@ -7,6 +7,14 @@ const { Client, LocalAuth } = require("whatsapp-web.js");
 
 const host = "127.0.0.1";
 const port = Number(process.env.WHATSAPP_GATEWAY_PORT || 32145);
+// Ritmo de digitação: rápido o bastante para não travar a fila e lento o
+// bastante para a conversa parecer escrita por uma pessoa.
+const CARACTERES_POR_SEGUNDO = 14;
+const PAUSA_LEITURA_MS = [600, 1800];
+const DIGITACAO_MINIMA_MS = 1200;
+const DIGITACAO_MAXIMA_MS = 12000;
+// O WhatsApp derruba o aviso de "digitando" sozinho: ele é renovado em blocos.
+const BLOCO_DIGITACAO_MS = 8000;
 const token = process.env.WHATSAPP_GATEWAY_TOKEN || "";
 const dataPath =
   process.env.WHATSAPP_SESSION_PATH ||
@@ -27,6 +35,35 @@ function normalizePhone(value) {
   if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
   if (digits.length < 12 || digits.length > 15) return "";
   return digits;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
+}
+
+function randomBetween([min, max]) {
+  return Math.round(min + Math.random() * (max - min));
+}
+
+function typingDuration(length) {
+  const base = DIGITACAO_MINIMA_MS + (length / CARACTERES_POR_SEGUNDO) * 1000;
+  const jitter = 0.8 + Math.random() * 0.5;
+  return Math.min(DIGITACAO_MAXIMA_MS, Math.round(base * jitter));
+}
+
+// Abre a conversa, marca como lida e digita antes de enviar, como uma pessoa faria.
+async function simulateTyping(client, chatId, message) {
+  const chat = await client.getChatById(chatId);
+  await chat.sendSeen().catch(() => undefined);
+  await sleep(randomBetween(PAUSA_LEITURA_MS));
+  let restante = typingDuration(message.length);
+  while (restante > 0) {
+    await chat.sendStateTyping().catch(() => undefined);
+    const bloco = Math.min(restante, BLOCO_DIGITACAO_MS);
+    await sleep(bloco);
+    restante -= bloco;
+  }
+  await chat.clearState().catch(() => undefined);
 }
 
 function publicState(state) {
@@ -219,9 +256,12 @@ async function route(request, response) {
       respond(response, 200, { sent: false, exists: false });
       return;
     }
-    const sent = await enqueue(state, () =>
-      state.client.sendMessage(numberId._serialized, message),
-    );
+    const sent = await enqueue(state, async () => {
+      await simulateTyping(state.client, numberId._serialized, message).catch(
+        () => undefined,
+      );
+      return state.client.sendMessage(numberId._serialized, message);
+    });
     respond(response, 200, {
       sent: true,
       exists: true,
@@ -243,6 +283,21 @@ const server = http.createServer((request, response) => {
 server.listen(port, host, () => {
   console.log(`Gateway WhatsApp ativo em http://${host}:${port}`);
 });
+
+// Sem o app no ar o gateway não serve para nada: encerrar evita deixar um
+// processo órfão segurando a porta e impedindo a próxima abertura.
+const parentPid = Number(process.env.WHATSAPP_GATEWAY_PARENT_PID || 0);
+if (parentPid > 0) {
+  setInterval(() => {
+    try {
+      process.kill(parentPid, 0);
+    } catch (error) {
+      if (error && error.code === "EPERM") return;
+      console.log("O app LeadFlow foi encerrado; fechando o gateway.");
+      shutdown().catch(() => process.exit(0));
+    }
+  }, 15000).unref();
+}
 
 async function shutdown() {
   server.close();

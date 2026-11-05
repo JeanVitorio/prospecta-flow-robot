@@ -7,6 +7,7 @@ import logging
 import os
 import secrets
 import shutil
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -14,6 +15,18 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from app_paths import data_path, resource_path
+
+
+def _primeira_porta_livre(inicial: int, tentativas: int = 20) -> int:
+    """Procura uma porta local disponível a partir da configurada."""
+    for porta in range(inicial, inicial + tentativas):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sonda:
+            try:
+                sonda.bind(("127.0.0.1", porta))
+            except OSError:
+                continue
+        return porta
+    return inicial
 
 
 class GatewayWhatsApp:
@@ -47,11 +60,16 @@ class GatewayWhatsApp:
             )
             return False
 
+        # Um gateway antigo pode ainda estar com a porta: procura a próxima livre
+        # em vez de encerrar na inicialização.
+        self.porta = _primeira_porta_livre(self.porta)
+        self.url = f"http://127.0.0.1:{self.porta}"
         ambiente = os.environ.copy()
         ambiente.update(
             WHATSAPP_GATEWAY_PORT=str(self.porta),
             WHATSAPP_GATEWAY_TOKEN=self.token,
             WHATSAPP_SESSION_PATH=str(data_path("dados_whatsapp")),
+            WHATSAPP_GATEWAY_PARENT_PID=str(os.getpid()),
         )
         os.environ["WHATSAPP_GATEWAY_URL"] = self.url
         os.environ["WHATSAPP_GATEWAY_TOKEN"] = self.token
