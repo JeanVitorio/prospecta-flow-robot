@@ -36,10 +36,13 @@ _SEGREDOS = re.compile(
     r"|sk_(?:live|test)_\w+"
     r"|(?i:bearer)\s+[\w.~+/=-]+"
 )
-_LIMITE_FILA = 2000
-_TAMANHO_LOTE = 100
-_INTERVALO_SEGUNDOS = 15
+_LIMITE_FILA = 500
+_TAMANHO_LOTE = 50
+_INTERVALO_SEGUNDOS = 60
 _ESPERA_AO_SAIR = 5
+# Só o que o suporte precisa ler: o passo a passo fica no arquivo local, para
+# o envio não virar uma gravação constante no banco do cliente.
+_NIVEL_MINIMO = logging.WARNING
 
 _handler: HandlerLogRemoto | None = None
 _handler_lock = threading.Lock()
@@ -64,7 +67,7 @@ class HandlerLogRemoto(logging.Handler):
     """Guarda os registros em memória e envia em lotes numa thread separada."""
 
     def __init__(self) -> None:
-        super().__init__(logging.INFO)
+        super().__init__(_NIVEL_MINIMO)
         self._fila: deque[dict[str, Any]] = deque(maxlen=_LIMITE_FILA)
         self._acordar = threading.Event()
         self._envio_lock = threading.Lock()
@@ -74,6 +77,8 @@ class HandlerLogRemoto(logging.Handler):
         atexit.register(self._enviar_ao_sair)
 
     def emit(self, record: logging.LogRecord) -> None:
+        if record.levelno < _NIVEL_MINIMO:
+            return
         if record.name.split(".")[0] in _IGNORADOS:
             return
         try:

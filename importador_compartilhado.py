@@ -23,6 +23,14 @@ from execucao_bot import (
     liberar_energia,
 )
 
+# Proteções contra repetir uma carga que não entra no banco. Sem elas, um erro
+# permanente vira milhares de gravações por hora e consome o disco do projeto.
+INTERVALO_CICLO = 10
+ESPERA_MAXIMA = 600
+PAUSA_ENTRE_LOTES = 1.0
+MAX_LOTES_SEGUIDOS_COM_FALHA = 3
+MAX_CICLOS_SEGUIDOS_COM_FALHA = 8
+
 
 class Importador:
     def __init__(self, slug: str):
@@ -47,6 +55,7 @@ class Importador:
         self.existentes: set[str] | None = None
         self.estado: dict[str, Any] = {}
         self.checkpoint_adquirido = False
+        self.ciclos_com_falha = 0
 
     def executar(self) -> None:
         bot_config.registrar_runtime(self.slug, processo="importador")
@@ -209,6 +218,16 @@ class Importador:
                         self.log.info(
                             "%s novo(s) lead(s) importado(s).", inseridos
                         )
+                    if falhas and not inseridos and not limite_atingido:
+                        self.ciclos_com_falha += 1
+                        if (
+                            self.ciclos_com_falha
+                            >= MAX_CICLOS_SEGUIDOS_COM_FALHA
+                        ):
+                            self._encerrar_por_falha_persistente()
+                            return
+                    else:
+                        self.ciclos_com_falha = 0
             except ParadaSolicitada:
                 raise
             except Exception:
@@ -216,7 +235,8 @@ class Importador:
                     "Erro temporário no ciclo de importação; haverá nova tentativa."
                 )
                 self.checkpoint.salvar_local("degraded")
-            self.controle.esperar(10)
+                self.ciclos_com_falha += 1
+            self.controle.esperar(self._espera_do_ciclo())
 
     def _processar_csv(
         self, respeitar_controle: bool = True
@@ -247,6 +267,7 @@ class Importador:
                 pendentes.append((row, chave))
                 chaves_pendentes.add(chave)
 
+        lotes_com_falha = 0
         for inicio in range(0, len(pendentes), 100):
             if respeitar_controle:
                 self.controle.verificar()
@@ -281,6 +302,10 @@ class Importador:
                                 int(self.estado["leads_importados"]) + 1
                             ),
                         )
+                lotes_com_falha = 0
+                # Respira entre os lotes: evita uma rajada de gravações.
+                if respeitar_controle:
+                    self.controle.esperar(PAUSA_ENTRE_LOTES)
                 limite_agente = bool(resultado.get("bot_limit_reached"))
                 if bool(resultado.get("limit_reached")) or limite_agente:
                     limite_atingido = bool(resultado.get("limit_reached"))
@@ -304,6 +329,20 @@ class Importador:
                     len(lote),
                     type(erro).__name__,
                 )
+                lotes_com_falha += 1
+                if lotes_com_falha >= MAX_LOTES_SEGUIDOS_COM_FALHA:
+                    # O erro se repete em todos os lotes: enviar o resto do
+                    # arquivo só gastaria o banco à toa.
+                    restantes = len(pendentes) - inicio - len(lote)
+                    if restantes > 0:
+                        falhas += restantes
+                    self.log.error(
+                        "Ciclo interrompido após %s lotes seguidos com falha; "
+                        "%s lead(s) continuam pendentes.",
+                        lotes_com_falha,
+                        falhas,
+                    )
+                    break
 
         self.estado["ultima_execucao"] = agora_iso()
         if inseridos or falhas:
@@ -321,6 +360,40 @@ class Importador:
                 "warning" if falhas or limite_atingido else "info",
             )
         return inseridos, falhas, limite_atingido
+
+    def _espera_do_ciclo(self) -> int:
+        """Afasta as tentativas quando o banco recusa a gravação."""
+        if not self.ciclos_com_falha:
+            return INTERVALO_CICLO
+        espera = INTERVALO_CICLO * (2 ** (self.ciclos_com_falha - 1))
+        return int(min(ESPERA_MAXIMA, espera))
+
+    def _encerrar_por_falha_persistente(self) -> None:
+        """Para o agente quando o erro não passa, em vez de insistir sem fim."""
+        erro = str(self.estado.get("ultimo_erro") or "desconhecido")
+        self.estado["atividade_atual"] = (
+            "Importação parada: o banco recusou os leads "
+            f"({erro}). Os leads ficaram salvos no PC."
+        )
+        self.log.error(
+            "Importação encerrada após %s ciclos seguidos com falha (%s).",
+            self.ciclos_com_falha,
+            erro,
+        )
+        self.checkpoint.registrar_evento(
+            "importador_falha_persistente",
+            self.estado["atividade_atual"],
+            {"tipo_erro": erro, "ciclos": self.ciclos_com_falha},
+            "error",
+        )
+        self.checkpoint.salvar("failed")
+        try:
+            bot_config.definir_comando(self.slug, "parado")
+        except Exception as erro_comando:
+            self.log.warning(
+                "Não foi possível registrar a parada por falha: %s",
+                erro_comando,
+            )
 
     def _encerrar_por_limite_agente(self) -> None:
         """Para scraper e importador quando o agente atinge seu limite de leads."""

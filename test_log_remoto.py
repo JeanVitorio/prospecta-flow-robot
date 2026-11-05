@@ -21,14 +21,28 @@ class LogRemotoTest(unittest.TestCase):
             self.handler = log_remoto.HandlerLogRemoto()
 
     def test_ignora_bibliotecas_de_rede(self) -> None:
-        self.handler.emit(_registro("httpx", "HTTP Request: POST"))
-        self.handler.emit(_registro("supabase.client", "x"))
+        self.handler.emit(_registro("httpx", "HTTP Request: POST", logging.ERROR))
+        self.handler.emit(_registro("supabase.client", "x", logging.ERROR))
         self.assertEqual(len(self.handler._fila), 0)
+
+    def test_so_envia_avisos_e_erros(self) -> None:
+        # O passo a passo fica no arquivo local: enviar tudo gravaria demais
+        # no banco do cliente.
+        self.handler.emit(_registro("bot", "iniciando", logging.INFO))
+        self.handler.emit(_registro("bot", "lead salvo", logging.DEBUG))
+        self.assertEqual(len(self.handler._fila), 0)
+        self.handler.emit(_registro("bot", "falhou", logging.WARNING))
+        self.handler.emit(_registro("bot", "quebrou", logging.ERROR))
+        self.assertEqual(len(self.handler._fila), 2)
 
     def test_mascara_tokens_e_chaves(self) -> None:
         jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.assinatura"
         self.handler.emit(
-            _registro("prospecta_runner", f"token {jwt} chave sb_secret_abc Bearer xyz.123")
+            _registro(
+                "prospecta_runner",
+                f"token {jwt} chave sb_secret_abc Bearer xyz.123",
+                logging.ERROR,
+            )
         )
         mensagem = self.handler._fila[0]["message"]
         self.assertNotIn(jwt, mensagem)
