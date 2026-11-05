@@ -79,6 +79,9 @@ def _configure_logging() -> None:
     log_path = data_path("logs", "prospecta_app.log")
     root = logging.getLogger()
     root.setLevel(logging.INFO)
+    # Bibliotecas de rede registram uma linha por requisição e enchem o arquivo.
+    for ruidoso in ("httpx", "httpcore", "hpack", "urllib3"):
+        logging.getLogger(ruidoso).setLevel(logging.WARNING)
     if not any(
         isinstance(handler, logging.FileHandler)
         and os.path.abspath(handler.baseFilename) == os.path.abspath(log_path)

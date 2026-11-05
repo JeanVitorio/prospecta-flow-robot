@@ -73,14 +73,14 @@ def obter_cliente() -> Any:
         try:
             from supabase import create_client
 
-            _cliente = create_client(url, chave)
+            cliente = create_client(url, chave)
             if sessao:
-                autenticacao = _cliente.auth.refresh_session(
+                autenticacao = cliente.auth.refresh_session(
                     str(sessao["refresh_token"])
                 )
                 if not autenticacao.session:
                     raise RuntimeError("Sessão Supabase não renovada.")
-                _cliente.auth.set_session(
+                cliente.auth.set_session(
                     autenticacao.session.access_token,
                     autenticacao.session.refresh_token,
                 )
@@ -103,11 +103,26 @@ def obter_cliente() -> Any:
                     )
 
                 persistir_sessao("", autenticacao.session)
-                _cliente.auth.on_auth_state_change(persistir_sessao)
+                cliente.auth.on_auth_state_change(persistir_sessao)
         except Exception as erro:
             raise ErroPersistencia(
                 "Não foi possível inicializar a conexão com o Supabase."
             ) from erro
+        # Só publica o cliente depois do login: um cliente sem sessão responderia
+        # 401 em todas as chamadas até o aplicativo ser reiniciado.
+        _cliente = cliente
+    return _cliente
+
+
+def descartar_cliente() -> None:
+    """Força um novo login na próxima chamada."""
+    global _cliente
+    with _cliente_lock:
+        _cliente = None
+
+
+def cliente_autenticado() -> Any | None:
+    """Cliente já conectado, sem iniciar uma autenticação."""
     return _cliente
 
 
@@ -136,8 +151,15 @@ def _executar(acao: str, chamada: Any) -> Any:
         if (
             "invalid api key" in detalhe
             or "'code': 401" in detalhe
+            or "401" in detalhe
+            or "unauthorized" in detalhe
             or "jwt expired" in detalhe
+            or "invalid jwt" in detalhe
+            or "pgrst301" in detalhe
         ):
+            # Token recusado: a próxima tentativa refaz o login em vez de
+            # repetir a chamada com a mesma sessão vencida.
+            descartar_cliente()
             raise ErroPersistencia(
                 "A sessão do aplicativo expirou. Abra o painel e faça login novamente."
             ) from erro

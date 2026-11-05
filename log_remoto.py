@@ -131,7 +131,13 @@ def _enviar_lote(lote: list[dict[str, Any]]) -> bool:
             return True
         import bot_repository
 
-        bot_repository.obter_cliente().rpc(
+        cliente = bot_repository.cliente_autenticado()
+        if cliente is None:
+            # O envio dos logs nunca inicia o login: quem faz isso é o
+            # executor, para dois logins não disputarem o mesmo token.
+            return False
+
+        cliente.rpc(
             "prospecta_register_app_logs",
             {
                 "p_runner_id": os.getenv("PROSPECTA_RUNNER_ID", "")[:200],
