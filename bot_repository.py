@@ -199,6 +199,11 @@ def _executar(acao: str, chamada: Any) -> Any:
         raise ErroPersistencia(f"Não foi possível {acao} no Supabase.") from erro
 
 
+def executar_chamada(acao: str, chamada: Any) -> Any:
+    """Executa uma chamada ao Supabase com o mesmo tratamento de sessão."""
+    return _executar(acao, chamada)
+
+
 def _unico(dados: Any, mensagem: str) -> dict[str, Any]:
     if isinstance(dados, list) and dados:
         return dados[0]

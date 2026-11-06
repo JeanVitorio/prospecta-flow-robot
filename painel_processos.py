@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import os
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from app_paths import data_path, install_root, is_frozen, resource_path
 import bot_config
+
+LOG = logging.getLogger("prospecta_processos")
+# Um processo que morre logo ao abrir não pode ser reaberto sem parar: cada
+# tentativa consulta e grava no banco do cliente.
+DURACAO_MINIMA_SAUDAVEL = 60
+INTERVALO_REINICIO = 10
+ESPERA_MAXIMA_REINICIO = 600
+MAX_REINICIOS_SEGUIDOS = 8
 
 
 class GerenciadorProcessos:
@@ -22,6 +32,9 @@ class GerenciadorProcessos:
         self._lock = threading.RLock()
         self._diretorio = install_root()
         self._runner_id = runner_id
+        self._aberturas: dict[str, float] = {}
+        self._falhas: dict[str, int] = {}
+        self._proxima_tentativa: dict[str, float] = {}
 
     def iniciar(self, slug: str, registrar_comando: bool = True) -> None:
         """Define o comando e inicia somente os processos ainda inativos."""
@@ -35,6 +48,8 @@ class GerenciadorProcessos:
                     continue
                 if self._runtime_ativo(slug, nome):
                     continue
+                if not self._pode_abrir(f"{slug}:{nome}"):
+                    continue
                 processos[nome] = self._abrir(slug, nome)
 
     def iniciar_mensagens(self, slug: str) -> None:
@@ -44,6 +59,8 @@ class GerenciadorProcessos:
             processos = self._processos.setdefault(chave, {})
             atual = processos.get("mensagens")
             if atual is not None and atual.poll() is None:
+                return
+            if not self._pode_abrir(chave):
                 return
             processos["mensagens"] = self._abrir(slug, "mensagens")
 
@@ -87,6 +104,40 @@ class GerenciadorProcessos:
                 }
                 if not self._processos[slug]:
                     del self._processos[slug]
+
+    def _pode_abrir(self, chave: str) -> bool:
+        """Afasta as tentativas de um processo que não para de pé.
+
+        Sem isso, um erro permanente vira uma reabertura a cada ciclo do
+        executor, e cada abertura consulta e grava no banco do cliente.
+        """
+        agora = time.monotonic()
+        abertura = self._aberturas.pop(chave, None)
+        if abertura is not None:
+            if agora - abertura < DURACAO_MINIMA_SAUDAVEL:
+                falhas = self._falhas.get(chave, 0) + 1
+                self._falhas[chave] = falhas
+                if falhas >= MAX_REINICIOS_SEGUIDOS:
+                    LOG.error(
+                        "%s encerrou %s vezes seguidas logo após abrir; "
+                        "novas tentativas suspensas até o próximo comando.",
+                        chave,
+                        falhas,
+                    )
+                    return False
+                self._proxima_tentativa[chave] = agora + min(
+                    ESPERA_MAXIMA_REINICIO,
+                    INTERVALO_REINICIO * (2 ** (falhas - 1)),
+                )
+                return False
+            self._falhas.pop(chave, None)
+            self._proxima_tentativa.pop(chave, None)
+        if self._falhas.get(chave, 0) >= MAX_REINICIOS_SEGUIDOS:
+            return False
+        if agora < self._proxima_tentativa.get(chave, 0.0):
+            return False
+        self._aberturas[chave] = agora
+        return True
 
     def _abrir(self, slug: str, processo: str) -> subprocess.Popen[Any]:
         pasta = (

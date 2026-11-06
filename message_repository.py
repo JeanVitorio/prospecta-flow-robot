@@ -13,12 +13,9 @@ PROVIDERS_SUPORTADOS = {PROVIDER_WHATSAPP_WEB}
 
 
 def _executar(acao: str, chamada: Callable[[], Any]) -> Any:
-    try:
-        return chamada().data
-    except Exception as erro:
-        raise bot_repository.ErroPersistencia(
-            f"Não foi possível {acao} no Supabase."
-        ) from erro
+    # Mesmo tratamento dos agentes de prospecção: uma sessão recusada refaz o
+    # login na próxima chamada em vez de ficar repetindo com o token vencido.
+    return bot_repository.executar_chamada(acao, chamada)
 
 
 def listar_comandos_runner(runner_id: str) -> list[dict[str, Any]]:

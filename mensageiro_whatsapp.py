@@ -18,6 +18,9 @@ from whatsapp_gateway_client import ClienteGateway
 
 
 DIAS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+# O banco pode demorar a responder. Gravar o andamento é informativo: falhar
+# nisso não pode derrubar um agente que está enviando normalmente.
+MAX_FALHAS_CONTROLE = 5
 
 
 class ParadaMensageiro(Exception):
@@ -52,6 +55,7 @@ class MensageiroWhatsApp:
         self.proximo_envio = 0.0
         self.ultimo_estado_sessao: tuple[Any, ...] | None = None
         self.gerador = random.SystemRandom()
+        self.falhas_controle = 0
 
     def executar(self) -> None:
         self._runtime("starting")
@@ -180,7 +184,26 @@ class MensageiroWhatsApp:
         agora = time.monotonic()
         if agora < self.proxima_consulta_controle:
             return
-        controle = repositorio.ler_comando(self.bot_id) or {}
+        try:
+            controle = repositorio.ler_comando(self.bot_id) or {}
+        except bot_repository.ErroPersistencia as erro:
+            self.falhas_controle += 1
+            self.proxima_consulta_controle = agora + 10
+            self.log.warning(
+                "Não foi possível ler o comando (%s/%s): %s",
+                self.falhas_controle,
+                MAX_FALHAS_CONTROLE,
+                erro,
+            )
+            if self.falhas_controle >= MAX_FALHAS_CONTROLE:
+                # Sem conseguir ler um pedido de parada, o agente não pode
+                # continuar enviando por conta própria.
+                self.log.error(
+                    "Encerrando: o comando do agente não pode ser consultado."
+                )
+                raise ParadaMensageiro() from erro
+            return
+        self.falhas_controle = 0
         self.proxima_consulta_controle = agora + 10
         destino = str(controle.get("target_runner_id") or "")
         if destino and destino != self.runner_id:
@@ -220,34 +243,45 @@ class MensageiroWhatsApp:
         )
         if not forcar and assinatura == self.ultimo_estado_sessao:
             return
+        try:
+            repositorio.atualizar_sessao(
+                self.session_id,
+                {
+                    "status": estado.get("status", "error"),
+                    "runner_id": self.runner_id,
+                    "connected_number": estado.get("connected_number"),
+                    "qr_code_data_url": estado.get("qr_code_data_url"),
+                    "qr_generated_at": estado.get("qr_generated_at"),
+                    "last_error": estado.get("last_error"),
+                    "last_seen_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+        except bot_repository.ErroPersistencia as erro:
+            # Banco lento não pode encerrar o agente: a próxima volta tenta
+            # gravar o estado de novo.
+            self.log.warning("Estado da sessão não registrado: %s", erro)
+            return
         self.ultimo_estado_sessao = assinatura
-        repositorio.atualizar_sessao(
-            self.session_id,
-            {
-                "status": estado.get("status", "error"),
-                "runner_id": self.runner_id,
-                "connected_number": estado.get("connected_number"),
-                "qr_code_data_url": estado.get("qr_code_data_url"),
-                "qr_generated_at": estado.get("qr_generated_at"),
-                "last_error": estado.get("last_error"),
-                "last_seen_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
 
     def _runtime_periodico(self, status: str, **dados: Any) -> None:
         if time.monotonic() >= self.proximo_heartbeat:
             self._runtime(status, **dados)
 
     def _runtime(self, status: str, **dados: Any) -> None:
-        repositorio.atualizar_runtime(
-            self.bot_id,
-            {
-                "runner_id": self.runner_id,
-                "status": status,
-                "heartbeat_at": datetime.now(timezone.utc).isoformat(),
-                **dados,
-            },
-        )
+        try:
+            repositorio.atualizar_runtime(
+                self.bot_id,
+                {
+                    "runner_id": self.runner_id,
+                    "status": status,
+                    "heartbeat_at": datetime.now(timezone.utc).isoformat(),
+                    **dados,
+                },
+            )
+        except bot_repository.ErroPersistencia as erro:
+            # Só informa o andamento na tela: tentar de novo na próxima volta
+            # é melhor do que parar um agente que está trabalhando.
+            self.log.warning("Andamento não registrado: %s", erro)
         self.proximo_heartbeat = time.monotonic() + 60
 
     def _esperar(self, segundos: float) -> None:
